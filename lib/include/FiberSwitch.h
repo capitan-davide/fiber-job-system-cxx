@@ -48,7 +48,7 @@ extern "C" void *FJS_fiberSwitch(void **SaveSlot, void *TargetSP, void *Arg);
 /// \return The \p Arg passed by whichever fiber eventually resumes us.
 ///
 /// \see FJS_fiberSwitch for the underlying ABI-level mechanism
-inline void *fiberSwitch(Fiber &From, Fiber &To, void *Arg = nullptr) {
+inline void *fiberSwitch(Fiber &From, Fiber &To, void *Arg = {}) {
   void *TargetSP = To.SP;
   To.SP = nullptr; // the frame is about to be consumed, safeguard agains double-resume
   return FJS_fiberSwitch(&From.SP, TargetSP, Arg);

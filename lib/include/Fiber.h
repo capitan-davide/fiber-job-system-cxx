@@ -68,7 +68,7 @@ using DefaultBackend = AsmBackend;
 ///                return: it must switch away (park) instead. Returning lands
 ///                on `ud2` and aborts the process.
 /// \param Arg     Opaque word passed as `EntryFn`'s only argument.
-inline void createFiber(Fiber &F, void (*EntryFn)(void *), void *Arg) {
+inline void createFiber(Fiber &F, void (*EntryFn)(void *), void *Arg = {}) {
   DefaultBackend::createFiber(F, EntryFn, Arg);
 }
 
