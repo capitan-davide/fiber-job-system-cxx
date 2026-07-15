@@ -7,6 +7,7 @@ target_link_libraries(
     FJS::LibFJS
 )
 
+# To test private headers.
 target_include_directories(
   tests
   PRIVATE

@@ -17,3 +17,7 @@ target_include_directories(
   PRIVATE
     ${CMAKE_SOURCE_DIR}/lib/include
 )
+
+if(FJS_USE_UCONTEXT)
+  target_compile_definitions(LibFJS PRIVATE FJS_USE_UCONTEXT)
+endif()
