@@ -9,7 +9,7 @@ FJS::Fiber TestFiber;
 int Trace = 0;
 void *SeenArg = nullptr;
 
-void entry(void *Arg) {
+[[noreturn]] void entry (void *Arg) {
   SeenArg = Arg;
   Trace = 1;
   FJS_fiberSwitch(&TestFiber.SP, MainFiber.SP, nullptr); // switch back to main
@@ -21,18 +21,18 @@ TEST_CASE("First fiber switch", "[Fiber]") {
 
   // What `FJS_fiberSwitch` does (see FiberSwitch.S):
   //
-  // 1: pushes the current state of the caller-saved registers on to the stack,
+  // 1: pushes the current state of the callee-saved registers on to the stack,
   //    this creates a real `ContextFrame` at rsp.
   // 2: write the `ContextFrame` to MainFiber.SP
   // 3: set rsp to the TestFiber.SP. This is a fabricated `ContextFrame` that
   //    holds the `EntryFn` in R12, `Arg` in R13, and the address of
   //    `FJS_fiberTrampoline` in RIP.
-  // 4: pops the caller-saved registers from the fabricated `ContextFrame`.
-  //    This will write RDX (i.e., `nullptr`) as the return value and return to
+  // 4: pops the callee-saved registers from the fabricated `ContextFrame`.
+  //    Then, will write RDX (i.e., `nullptr`) as the return value and return to
   //    RIP. The execution now passes to `FJS_fiberTrampoline`.
   //
-  // The trampoline will now set `Arg` as the first argument, and invoke
-  // `entry` via R13 (i.e., entry(0x1234)).
+  // The trampoline will now set `Arg` from R13 as the first argument, and
+  // invoke `entry` via R12 (i.e., entry(0x1234)).
   void *Ret = FJS_fiberSwitch(&MainFiber.SP, TestFiber.SP, nullptr);
 
   REQUIRE(Trace == 1);

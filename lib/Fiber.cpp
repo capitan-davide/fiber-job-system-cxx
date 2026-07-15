@@ -5,7 +5,7 @@
 
 namespace FJS {
 
-extern "C" void FJS_fiberTrampoline(); // never call this - address-only symbol
+extern "C" [[noreturn]] void FJS_fiberTrampoline(); // never call this - address-only symbol
 
 static constexpr U64 DefaultStackSize = 64 * 1024;
 

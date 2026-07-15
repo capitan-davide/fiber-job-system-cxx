@@ -69,7 +69,7 @@ FJS_fiberSwitch:        /* void *FJS_fiberSwitch(void **SaveSlot, void *TargetSP
 
   .globl FJS_fiberTrampoline
   .type  FJS_fiberTrampoline, @function
-FJS_fiberTrampoline:    /* void FJS_fiberTrampoline() - never call this one! */
+FJS_fiberTrampoline:    /* [[noreturn]] void FJS_fiberTrampoline() - never call this one! */
   mov     %r13, %rdi    /* arg -> first parameter */
   call    *%r12         /* invoke the entry function */
   ud2                   /* entry returned: crash loudly (for now) */
