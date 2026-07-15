@@ -1,4 +1,4 @@
-add_executable(tests Tests.cpp)
+add_executable(tests FiberTests.cpp JobTests.cpp)
 
 target_link_libraries(
   tests

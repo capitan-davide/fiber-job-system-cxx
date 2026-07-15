@@ -1,13 +1,13 @@
 #include "Fiber.h"
 
+#include "FJS/Error.h"
+#include "FJS/Types.h"
+
 #include <cstddef>
 #include <cstdlib>
 
 #include <sys/mman.h> // TODO: This is temporary and will be moved into an allocator
 #include <unistd.h>
-
-#include "FJS/Error.h"
-#include "FJS/Types.h"
 
 namespace FJS {
 

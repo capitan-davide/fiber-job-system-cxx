@@ -1,5 +1,8 @@
 #include "Fiber.h"
+#include "FiberPool.h"
 #include "FiberSwitch.h"
+
+#include "FJS/Error.h"
 
 #include <cerrno>
 #include <csignal>
@@ -8,13 +11,10 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-#include "FJS/Error.h"
-
 #include <catch2/catch_test_macros.hpp>
 
 namespace {
-template <typename Fn>
-int diesWithSignal(Fn &&F) {
+template <typename Fn> int diesWithSignal(Fn &&F) {
   pid_t Pid = ::fork();
   if (Pid == -1)
     FAIL("fork: " << std::strerror(errno));
@@ -111,4 +111,22 @@ TEST_CASE("Guard page traps stack overflow", "[Fiber]") {
   REQUIRE(diesWithSignal([&] { *FirstUsable = 1; }) == 0);
 
   FJS::destroyFiber(TestFiber);
+}
+
+TEST_CASE("FiberPool hands out and reclaims fibers", "[Fiber]") {
+  FJS::FiberPool Pool;
+  Pool.init(2, [](void *) {}, nullptr);
+
+  FJS::Fiber *A = Pool.acquire();
+  FJS::Fiber *B = Pool.acquire();
+  REQUIRE(A != nullptr);
+  REQUIRE(B != nullptr);
+  REQUIRE(Pool.acquire() == nullptr); // exhausted
+
+  Pool.release(B);
+  REQUIRE(Pool.acquire() == B);
+
+  Pool.release(A);
+  Pool.release(B);
+  Pool.shutdown();
 }

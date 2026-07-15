@@ -1,6 +1,5 @@
   .text
 
-
 /* Saved-context frame, built by FJS_fiberSwitch on the fiber's own stack.
  * Offsets relative to the saved rsp:
  *
@@ -13,7 +12,6 @@
  *
  * Total: 64 bytes. Saved rsp is 16-byte aligned (see below).
  */
-
   .globl FJS_fiberSwitch
   .type  FJS_fiberSwitch, @function
 FJS_fiberSwitch:        /* void *FJS_fiberSwitch(void **SaveSlot, void *TargetSP, void *Arg) */
@@ -48,7 +46,6 @@ FJS_fiberSwitch:        /* void *FJS_fiberSwitch(void **SaveSlot, void *TargetSP
   ret                   /* pops the return address -> resumes target */
   .size FJS_fiberSwitch, . - FJS_fiberSwitch
 
-
 /* Entry point for brand-new fibers. Never called directly: its address is
  * planted as teh forget return address in a fabricated frame, so the first
  * switch into a new filer `ret`s here.
@@ -66,7 +63,6 @@ FJS_fiberSwitch:        /* void *FJS_fiberSwitch(void **SaveSlot, void *TargetSP
  * to return to. The trailing ud2 turns any violation into an immediate SIGILL
  * instead of a jump into garbage.
  */
-
   .globl FJS_fiberTrampoline
   .type  FJS_fiberTrampoline, @function
 FJS_fiberTrampoline:    /* [[noreturn]] void FJS_fiberTrampoline() - never call this one! */
@@ -74,6 +70,5 @@ FJS_fiberTrampoline:    /* [[noreturn]] void FJS_fiberTrampoline() - never call 
   call    *%r12         /* invoke the entry function */
   ud2                   /* entry returned: crash loudly (for now) */
   .size FJS_fiberTrampoline, . - FJS_fiberTrampoline
-
 
   .section .note.GNU-stack,"",@progbits
