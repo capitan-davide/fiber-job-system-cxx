@@ -5,13 +5,23 @@
 
 namespace FJS {
 
+#define FIBER_ENTRY_POINT(Name) [[noreturn]] void Name(void *Arg)
+
 struct Fiber {
   void *SP = nullptr;    // parcked stack pointer - only meaningful while parked
   void *Stack = nullptr; // allocation base, kept for freeing
   U64 StackSize = 0;
 };
 
-struct ContextFrame {
+/// A parked fiber's saved context, exactly as `FJS_fiberSwitch` lays it out on
+/// the stack (see FiberSwitch.S).
+///
+/// \note The 16-byte alignment is NOT for the members (8 would do) - it is the
+///       SysV ABI's requirement on a parked fiber `rsp`, which this struct's
+///       address become. Real frames get it for free from the switch's push
+///       arithmetic; forget ones (from `createFiber`) must place the frame at
+///       `Top - 64` with `Top` 16-aligned.
+struct alignas(16) ContextFrame {
   U16 FCW;         // 0x00
   U16 _Pad;        // ...
   U32 MXCSR;       // 0x04
@@ -22,8 +32,26 @@ struct ContextFrame {
   void *RIP;       // 0x38  <- &FJS_fiberTrampoline
 };
 static_assert(sizeof(ContextFrame) == 64);
+static_assert(alignof(ContextFrame) == 16);
 
-/// Prepares a fiber so the next `FJS_fiberSwitch` to it runs \p EntryFn(\p Arg).
+struct AsmBackend {
+  static void createFiber(Fiber &F, void (*EntryFn)(void *), void *Arg);
+  static void destroyFiber(Fiber &F);
+};
+
+struct UcontextBackend {
+  static void createFiber(Fiber &F, void (*EntryFn)(void *), void *Arg);
+  static void destroyFiber(Fiber &F);
+};
+
+#ifdef FJS_USE_UCONTEXT
+using DefaultBackend = UcontextBackend;
+#else
+using DefaultBackend = AsmBackend;
+#endif
+
+/// Prepares a fiber so the next `FJS_fiberSwitch` to it runs \p EntryFn(\p
+/// Arg).
 ///
 /// Allocates a fresh stack and forgoes a `ContextFrame` as its top that mimics
 /// a parked fiber: the cargo slots (R12/R13) carry \p EntryFn and \p Arg, and
@@ -33,13 +61,16 @@ static_assert(sizeof(ContextFrame) == 64);
 /// The fiber does not run yet - execution starts only when some fiber switches
 /// to `F.SP`.
 ///
-/// \param F       Fiber to initialize. Any previous state is overwritten without
+/// \param F       Fiber to initialize. Any previous state is overwritten
+/// without
 ///                being freed.
 /// \param EntryFn Function the fiber must execute on first resume. Must never
 ///                return: it must switch away (park) instead. Returning lands
 ///                on `ud2` and aborts the process.
 /// \param Arg     Opaque word passed as `EntryFn`'s only argument.
-void createFiber(Fiber &F, void (*EntryFn)(void *), void *Arg);
+inline void createFiber(Fiber &F, void (*EntryFn)(void *), void *Arg) {
+  DefaultBackend::createFiber(F, EntryFn, Arg);
+}
 
 /// Frees a fiber's stack.
 ///
@@ -49,7 +80,7 @@ void createFiber(Fiber &F, void (*EntryFn)(void *), void *Arg);
 ///
 /// \param F Fiber to destroy. Its fields are reset so a later `createFiber` may
 ///          reuse the object.
-void destroyFiber(Fiber &F);
+inline void destroyFiber(Fiber &F) { DefaultBackend::destroyFiber(F); }
 
 } // namespace FJS
 

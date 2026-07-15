@@ -1,6 +1,8 @@
 #include "Fiber.h"
 #include "FiberSwitch.h"
 
+#include "FJS/Error.h"
+
 #include <catch2/catch_test_macros.hpp>
 
 namespace {
@@ -9,31 +11,36 @@ FJS::Fiber TestFiber;
 int Trace = 0;
 void *SeenArg = nullptr;
 
-[[noreturn]] void entry (void *Arg) {
+FIBER_ENTRY_POINT(entry) {
   SeenArg = Arg;
   Trace = 1;
-  FJS_fiberSwitch(&TestFiber.SP, MainFiber.SP, nullptr); // switch back to main
+  FJS::fiberSwitch(TestFiber, MainFiber); // switch back to main
+  FJS_UNREACHABLE("Reached the end of the fiber entrypoint");
 }
 } // namespace
 
 TEST_CASE("First fiber switch", "[Fiber]") {
   FJS::createFiber(TestFiber, entry, reinterpret_cast<void *>(0x1234));
 
-  // What `FJS_fiberSwitch` does (see FiberSwitch.S):
+  // `FJS::fiberSwitch` first invalidates TestFiber.SP (the frame is about to be
+  // consumed - a second resume must crash, not replay it), then calls
+  // `FJS_fiberSwitch`, which does (see FiberSwitch.S):
   //
-  // 1: pushes the current state of the callee-saved registers on to the stack,
+  // 1: pushes the current state of the callee-saved registers onto the stack,
   //    this creates a real `ContextFrame` at rsp.
-  // 2: write the `ContextFrame` to MainFiber.SP
-  // 3: set rsp to the TestFiber.SP. This is a fabricated `ContextFrame` that
-  //    holds the `EntryFn` in R12, `Arg` in R13, and the address of
+  // 2: writes rsp (the address of that frame) to MainFiber.SP - main is now a
+  //    parked fiber, indistinguishable from any other.
+  // 3: sets rsp to TestFiber's parked SP. This is a forged `ContextFrame` that
+  //    holds `entry` in R12, `Arg` in R13, and the address of
   //    `FJS_fiberTrampoline` in RIP.
-  // 4: pops the callee-saved registers from the fabricated `ContextFrame`.
-  //    Then, will write RDX (i.e., `nullptr`) as the return value and return to
-  //    RIP. The execution now passes to `FJS_fiberTrampoline`.
+  // 4: pops the callee-saved registers from the forged `ContextFrame`, copies
+  //    RDX (our Arg, `nullptr` - untouched by all of the above) into RAX, and
+  //    returns to RIP. Execution now enters `FJS_fiberTrampoline`.
   //
-  // The trampoline will now set `Arg` from R13 as the first argument, and
-  // invoke `entry` via R12 (i.e., entry(0x1234)).
-  void *Ret = FJS_fiberSwitch(&MainFiber.SP, TestFiber.SP, nullptr);
+  // The trampoline moves R13 (0x1234) into RDI and calls `entry` via R12 -
+  // i.e., entry(0x1234). RAX's nullptr is ignored: on a *first* run the
+  // argument arrives via the R13 cargo, not v
+  void *Ret = FJS::fiberSwitch(MainFiber, TestFiber);
 
   REQUIRE(Trace == 1);
   REQUIRE(SeenArg == reinterpret_cast<void *>(0x1234));
