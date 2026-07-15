@@ -3,13 +3,16 @@
 #include <cstddef>
 #include <cstdlib>
 
+#include "FJS/Error.h"
+#include "FJS/Types.h"
+
 namespace FJS {
 
 extern "C" [[noreturn]] void FJS_fiberTrampoline(); // never call this - address-only symbol
 
 static constexpr U64 DefaultStackSize = 64 * 1024;
 
-void createFiber(Fiber &F, void (*EntryFn)(void *), void *Arg) {
+void AsmBackend::createFiber(Fiber &F, void (*EntryFn)(void *), void *Arg) {
   F.StackSize = DefaultStackSize;
   F.Stack = std::aligned_alloc(16, F.StackSize);
 
@@ -29,9 +32,18 @@ void createFiber(Fiber &F, void (*EntryFn)(void *), void *Arg) {
   F.SP = Frame;
 }
 
-void destroyFiber(Fiber &F) {
+void AsmBackend::destroyFiber(Fiber &F) {
   std::free(F.Stack);
   F = {};
+}
+
+void UcontextBackend::createFiber(Fiber &F, void (*EntryFn)(void *),
+                                  void *Arg) {
+  FJS_UNREACHABLE("Not implemented");
+}
+
+void UcontextBackend::destroyFiber(Fiber &F) {
+  FJS_UNREACHABLE("Not implemented");
 }
 
 } // namespace FJS
