@@ -9,26 +9,26 @@
 #include <catch2/catch_test_macros.hpp>
 
 namespace {
-JOB_ENTRY_POINT(jobA) {}
-JOB_ENTRY_POINT(jobB) {}
+JOB_ENTRY_POINT(jobEntryA) {}
+JOB_ENTRY_POINT(jobEntryB) {}
 } // namespace
 
 TEST_CASE("JobQueue pops in FIFO order", "[Job]") {
   FJS::JobQueue Queue;
-  int PayloadA = 0, PayloadB = 0;
+  int ParamA = 0, ParamB = 0;
 
-  Queue.push({.EntryFn = jobA, .Param = &PayloadA});
-  Queue.push({.EntryFn = jobB, .Param = &PayloadB});
+  Queue.push({.EntryFn = jobEntryA, .Param = &ParamA});
+  Queue.push({.EntryFn = jobEntryB, .Param = &ParamB});
 
   FJS::JobDecl Out;
   REQUIRE(Queue.pop(Out));
-  REQUIRE(Out.EntryFn == jobA);
-  REQUIRE(Out.Param == &PayloadA);
+  REQUIRE(Out.EntryFn == jobEntryA);
+  REQUIRE(Out.Param == &ParamA);
   REQUIRE(Out.Done == nullptr);
 
   REQUIRE(Queue.pop(Out));
-  REQUIRE(Out.EntryFn == jobB);
-  REQUIRE(Out.Param == &PayloadB);
+  REQUIRE(Out.EntryFn == jobEntryB);
+  REQUIRE(Out.Param == &ParamB);
   REQUIRE(Out.Done == nullptr);
 
   REQUIRE_FALSE(Queue.pop(Out));

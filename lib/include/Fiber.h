@@ -26,31 +26,10 @@ struct Fiber {
   U64 StackSize = 0;
 };
 
-/// A parked fiber's saved context, exactly as `FJS_fiberSwitch` lays it out on
-/// the stack (see FiberSwitch.S).
-///
-/// \note The 16-byte alignment is NOT for the members (8 would do) - it is the
-///       SysV ABI's requirement on a parked fiber `rsp`, which this struct's
-///       address become. Real frames get it for free from the switch's push
-///       arithmetic; forget ones (from `createFiber`) must place the frame at
-///       `Top - 64` with `Top` 16-aligned.
-struct alignas(16) ContextFrame {
-  U16 FCW;         // 0x00
-  U16 _Pad;        // ...
-  U32 MXCSR;       // 0x04
-  void *R15, *R14; // 0x08, 0x10
-  void *R13;       // 0x18  <- cargo: Arg
-  void *R12;       // 0x20  <- cargo: EntryFn
-  void *RBP, *RBX; // 0x28, 0x30
-  void *RIP;       // 0x38  <- &FJS_fiberTrampoline
-};
-static_assert(sizeof(ContextFrame) == 64);
-static_assert(alignof(ContextFrame) == 16);
-
 struct AsmBackend {
-  static void createFiber(Fiber &F, void (*EntryFn)(void *), void *Arg);
+  static void createFiber(Fiber &F, void (*EntryFn)(void *), void *Arg = {});
   static void destroyFiber(Fiber &F);
-  static void *switchFiber(Fiber &From, Fiber &To, void *Arg);
+  static void *switchFiber(Fiber &From, Fiber &To, void *Arg = {});
 };
 
 inline void *AsmBackend::switchFiber(Fiber &From, Fiber &To, void *Arg) {
@@ -60,9 +39,9 @@ inline void *AsmBackend::switchFiber(Fiber &From, Fiber &To, void *Arg) {
 }
 
 struct UcontextBackend {
-  static void createFiber(Fiber &F, void (*EntryFn)(void *), void *Arg);
+  static void createFiber(Fiber &F, void (*EntryFn)(void *), void *Arg = {});
   static void destroyFiber(Fiber &F);
-  static void *switchFiber(Fiber &From, Fiber &To, void *Arg);
+  static void *switchFiber(Fiber &From, Fiber &To, void *Arg = {});
 };
 
 #ifdef FJS_USE_UCONTEXT

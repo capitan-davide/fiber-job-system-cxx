@@ -1,6 +1,5 @@
 #include "Fiber.h"
 #include "FiberPool.h"
-#include "FiberSwitch.h"
 
 #include "FJS/Error.h"
 
@@ -11,6 +10,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#include <catch2/catch_template_test_macros.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 namespace {
@@ -34,7 +34,7 @@ FJS::Fiber TestFiber;
 int Trace = 0;
 void *SeenArg = nullptr;
 
-FIBER_ENTRY_POINT(entry) {
+template <typename Backend> FIBER_ENTRY_POINT(entry) {
   // NOTE: a *failing* REQUIRE throws, and from a fiber the exception would
   // unwind into the asm trampoline (no unwind info) -> std::terminate. Fine
   // here: a loud death still fails the test. Prefer asserting on the main side
@@ -42,22 +42,26 @@ FIBER_ENTRY_POINT(entry) {
   REQUIRE(TestFiber.SP == nullptr); // invalidated by `FJS::switchFiber`
   SeenArg = Arg;
   Trace = 1;
-  FJS::switchFiber(TestFiber, MainFiber); // switch back to main
+  Backend::switchFiber(TestFiber, MainFiber); // switch back to main
   FJS_UNREACHABLE("Reached the end of the fiber entrypoint");
 }
 
-FIBER_ENTRY_POINT(increment) {
+template <typename Backend> FIBER_ENTRY_POINT(increment) {
   auto *Cnt = reinterpret_cast<unsigned *>(Arg);
   while (true) {
     ++(*Cnt);
-    FJS::switchFiber(TestFiber, MainFiber);
+    Backend::switchFiber(TestFiber, MainFiber);
   }
   FJS_UNREACHABLE("Reached the end of the fiber entrypoint");
 }
 } // namespace
 
-TEST_CASE("Fiber switching works", "[Fiber]") {
-  FJS::createFiber(TestFiber, entry, reinterpret_cast<void *>(0x1234));
+TEMPLATE_TEST_CASE("Fiber switching works", "[Fiber]", FJS::AsmBackend,
+                   FJS::UcontextBackend) {
+  using Backend = TestType;
+
+  Backend::createFiber(TestFiber, entry<Backend>,
+                       reinterpret_cast<void *>(0x1234));
 
   // `FJS::switchFiber` first invalidates TestFiber.SP (the frame is about to be
   // consumed - a second resume must crash, not replay it), then calls
@@ -77,7 +81,7 @@ TEST_CASE("Fiber switching works", "[Fiber]") {
   // The trampoline moves R13 (0x1234) into RDI and calls `entry` via R12 -
   // i.e., entry(0x1234). RAX's nullptr is ignored: on a *first* run the
   // argument arrives via the R13 cargo, not via RDX.
-  void *Ret = FJS::switchFiber(MainFiber, TestFiber);
+  void *Ret = Backend::switchFiber(MainFiber, TestFiber);
 
   REQUIRE(MainFiber.SP == nullptr); // invalidated by `FJS::switchFiber`
   REQUIRE(Trace == 1);
@@ -85,23 +89,29 @@ TEST_CASE("Fiber switching works", "[Fiber]") {
   REQUIRE(Ret == nullptr);
 
   // `TestFiber` is still parked at the end of `entry`, here we destroy it.
-  FJS::destroyFiber(TestFiber);
+  Backend::destroyFiber(TestFiber);
 }
 
-TEST_CASE("Fiber ping-pong works", "[Fiber]") {
+TEMPLATE_TEST_CASE("Fiber ping-pong works", "[Fiber]", FJS::AsmBackend,
+                   FJS::UcontextBackend) {
+  using Backend = TestType;
+
   unsigned Cnt = 0;
-  FJS::createFiber(TestFiber, increment, &Cnt);
+  Backend::createFiber(TestFiber, increment<Backend>, &Cnt);
 
   for (unsigned I = 1; I <= 5; ++I) {
-    void *Ret = FJS::switchFiber(MainFiber, TestFiber);
+    void *Ret = Backend::switchFiber(MainFiber, TestFiber);
     REQUIRE(Cnt == I);
   }
 
-  FJS::destroyFiber(TestFiber);
+  Backend::destroyFiber(TestFiber);
 }
 
-TEST_CASE("Guard page traps stack overflow", "[Fiber]") {
-  FJS::createFiber(TestFiber, nullptr);
+TEMPLATE_TEST_CASE("Guard page traps stack overflow", "[Fiber]",
+                   FJS::AsmBackend, FJS::UcontextBackend) {
+  using Backend = TestType;
+
+  Backend::createFiber(TestFiber, nullptr);
 
   auto *Guard = reinterpret_cast<volatile char *>(TestFiber.Stack);
   REQUIRE(diesWithSignal([&] { *Guard = 1; }) == SIGSEGV);
@@ -110,7 +120,7 @@ TEST_CASE("Guard page traps stack overflow", "[Fiber]") {
   volatile char *FirstUsable = Guard + PageSize;
   REQUIRE(diesWithSignal([&] { *FirstUsable = 1; }) == 0);
 
-  FJS::destroyFiber(TestFiber);
+  Backend::destroyFiber(TestFiber);
 }
 
 TEST_CASE("FiberPool hands out and reclaims fibers", "[Fiber]") {
