@@ -51,7 +51,7 @@ FJS_fiberSwitch:        /* void *FJS_fiberSwitch(void **SaveSlot, void *TargetSP
  * switch into a new filer `ret`s here.
  *
  * Receives its inputs via the two "cargo" slots of that fabricated frame,
- * popped into registers by the restore phase of FHS_fiberSwitch:
+ * popped into registers by the restore phase of FJS_fiberSwitch:
  *
  *   r12  entry function pointer  void (*)(void *)
  *   r13  user artument           passed as arg 1 (rdi) 

@@ -39,10 +39,10 @@ FIBER_ENTRY_POINT(entry) {
   // unwind into the asm trampoline (no unwind info) -> std::terminate. Fine
   // here: a loud death still fails the test. Prefer asserting on the main side
   // when possible.
-  REQUIRE(TestFiber.SP == nullptr); // invalidated by `FJS::fiberSwitch`
+  REQUIRE(TestFiber.SP == nullptr); // invalidated by `FJS::switchFiber`
   SeenArg = Arg;
   Trace = 1;
-  FJS::fiberSwitch(TestFiber, MainFiber); // switch back to main
+  FJS::switchFiber(TestFiber, MainFiber); // switch back to main
   FJS_UNREACHABLE("Reached the end of the fiber entrypoint");
 }
 
@@ -50,7 +50,7 @@ FIBER_ENTRY_POINT(increment) {
   auto *Cnt = reinterpret_cast<unsigned *>(Arg);
   while (true) {
     ++(*Cnt);
-    FJS::fiberSwitch(TestFiber, MainFiber);
+    FJS::switchFiber(TestFiber, MainFiber);
   }
   FJS_UNREACHABLE("Reached the end of the fiber entrypoint");
 }
@@ -59,7 +59,7 @@ FIBER_ENTRY_POINT(increment) {
 TEST_CASE("Fiber switching works", "[Fiber]") {
   FJS::createFiber(TestFiber, entry, reinterpret_cast<void *>(0x1234));
 
-  // `FJS::fiberSwitch` first invalidates TestFiber.SP (the frame is about to be
+  // `FJS::switchFiber` first invalidates TestFiber.SP (the frame is about to be
   // consumed - a second resume must crash, not replay it), then calls
   // `FJS_fiberSwitch`, which does (see FiberSwitch.S):
   //
@@ -77,9 +77,9 @@ TEST_CASE("Fiber switching works", "[Fiber]") {
   // The trampoline moves R13 (0x1234) into RDI and calls `entry` via R12 -
   // i.e., entry(0x1234). RAX's nullptr is ignored: on a *first* run the
   // argument arrives via the R13 cargo, not via RDX.
-  void *Ret = FJS::fiberSwitch(MainFiber, TestFiber);
+  void *Ret = FJS::switchFiber(MainFiber, TestFiber);
 
-  REQUIRE(MainFiber.SP == nullptr); // invalidated by `FJS::fiberSwitch`
+  REQUIRE(MainFiber.SP == nullptr); // invalidated by `FJS::switchFiber`
   REQUIRE(Trace == 1);
   REQUIRE(SeenArg == reinterpret_cast<void *>(0x1234));
   REQUIRE(Ret == nullptr);
@@ -93,7 +93,7 @@ TEST_CASE("Fiber ping-pong works", "[Fiber]") {
   FJS::createFiber(TestFiber, increment, &Cnt);
 
   for (unsigned I = 1; I <= 5; ++I) {
-    void *Ret = FJS::fiberSwitch(MainFiber, TestFiber);
+    void *Ret = FJS::switchFiber(MainFiber, TestFiber);
     REQUIRE(Cnt == I);
   }
 

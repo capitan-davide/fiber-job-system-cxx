@@ -1,4 +1,5 @@
 #include "Fiber.h"
+#include "FiberSwitch.h"
 
 #include "FJS/Error.h"
 #include "FJS/Types.h"
@@ -58,6 +59,11 @@ void UcontextBackend::createFiber(Fiber &F, void (*EntryFn)(void *),
 
 void UcontextBackend::destroyFiber(Fiber &F) {
   FJS_UNREACHABLE("Not implemented");
+}
+
+void *UcontextBackend::switchFiber(Fiber &From, Fiber &To, void *Arg) {
+  FJS_UNREACHABLE("Not implemented");
+  return {};
 }
 
 } // namespace FJS
