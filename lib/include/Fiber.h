@@ -3,9 +3,20 @@
 
 #include "FJS/Types.h"
 
-namespace FJS {
-
+/// Declares a fiber entry function with the required signature:
+/// `[[noreturn]] void Name(void *Arg)`.
+///
+/// `[[noreturn]]` because a fiber has no caller to return to: its stack starts
+/// at the forged `ContextFrame`, whose planted return address is
+/// `FJS_fiberTrampoline` - below that there's nothing but the guard page. A
+/// fiber leaves only by switching away (`fiberSwitch`); if the entry function
+/// ever returns, the trampoline's trailing `ud2` aborts the process. The
+/// attribute makes the compiler enforce the contract: any code path that falls
+/// off the end becomes a warning at the definition instead of a SIGILL at
+/// runtime.
 #define FIBER_ENTRY_POINT(Name) [[noreturn]] void Name(void *Arg)
+
+namespace FJS {
 
 struct Fiber {
   void *SP = nullptr;    // parcked stack pointer - only meaningful while parked
