@@ -6,7 +6,9 @@
 
 #include "FJS/Types.h"
 
+#include <array>
 #include <atomic>
+#include <span>
 
 namespace FJS {
 
@@ -15,8 +17,6 @@ struct Waiter {
   Fiber *ParkedFiber = nullptr; // nullptr means the slot is free
   U32 Target = 0;               // value that satiefies this waiter
 };
-
-static constexpr U32 MaxWaiters = 4;
 
 /// Completion tracker for a batch of jobs.
 ///
@@ -28,13 +28,16 @@ static constexpr U32 MaxWaiters = 4;
 /// identity that jobs hold pointers to, not a value.
 class Counter {
 public:
+  static constexpr U32 MaxWaiters = 4;
+
   /// \param Value Number of decrements expected before completion - typically
   ///              the job count of the batch.
   explicit Counter(U32 Value) : Value{Value} {}
 
-  /// Records on completed job. Never called more times than the initial
-  /// \p Value: the counter would wrap below zero.
-  void decrement();
+  /// Records on completed job. When the new value satisfies waiters, they are
+  /// removed from the wait list and returned in \p Woken.
+  /// \return Number of entries written to \p Woken.
+  U32 decrement(std::span<Fiber *, MaxWaiters> Woken);
 
   // Current value; 0 means every expected job has finished.
   U32 load() const;
@@ -47,7 +50,7 @@ public:
 private:
   std::atomic<U32> Value;
   SpinLock Lock;
-  Waiter Waiters[MaxWaiters];
+  std::array<Waiter, MaxWaiters> Waiters;
 };
 
 } // namespace FJS

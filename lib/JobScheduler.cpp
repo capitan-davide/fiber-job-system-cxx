@@ -6,17 +6,25 @@
 #include "FJS/Error.h"
 #include "FJS/Job.h"
 
+#include <array>
+
 namespace FJS {
 
 namespace {
 FIBER_ENTRY_POINT(fiberMain) {
   auto *S = static_cast<JobScheduler *>(Arg);
+  std::array<Fiber *, Counter::MaxWaiters> Woken;
   while (true) {
     JobDecl JD;
     while (S->Queue.pop(JD)) {
       JD.EntryFn(JD.Param);
-      if (JD.Done)
-        JD.Done->decrement();
+      if (JD.Done) {
+        const U32 NumWoken = JD.Done->decrement(Woken);
+        // No ready list yet: nothing can be waiting. This assert is the
+        // tripwire that fires when waitForCounter exists but the ready-list
+        // push doesn't.
+        FJS_ASSERT(NumWoken == 0, "Woken fibers with nowhere to go");
+      }
     }
     // Queue dry: park until the next runJobs resumes us with more work.
     FJS::switchFiber(*S->Current, S->Bootstrap);

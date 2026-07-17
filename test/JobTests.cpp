@@ -5,6 +5,8 @@
 #include "FJS/Job.h"
 #include "FJS/JobQueue.h"
 
+#include <array>
+
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -39,10 +41,12 @@ TEST_CASE("JobQueue pops in FIFO order", "[Job]") {
 
 TEST_CASE("Counter counts down to zero", "[Job]") {
   FJS::Counter C(2);
+  std::array<FJS::Fiber *, FJS::Counter::MaxWaiters> Woken;
+
   REQUIRE(C.load() == 2);
-  C.decrement();
+  REQUIRE(C.decrement(Woken) == 0);
   REQUIRE(C.load() == 1);
-  C.decrement();
+  REQUIRE(C.decrement(Woken) == 0);
   REQUIRE(C.load() == 0);
 }
 

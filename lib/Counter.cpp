@@ -1,13 +1,27 @@
 #include "Counter.h"
 
 #include "FJS/Error.h"
+#include "SpinLock.h"
 
 namespace FJS {
 
-void Counter::decrement() {
-  [[maybe_unused]] const U32 Prev =
-      Value.fetch_sub(1, std::memory_order_seq_cst);
+U32 Counter::decrement(std::span<Fiber *, MaxWaiters> Woken) {
+  ScopedLock L(Lock);
+
+  const U32 Prev = Value.fetch_sub(1, std::memory_order_seq_cst);
   FJS_ASSERT(Prev > 0, "Counter decrement underflow");
+  const U32 Now = Prev - 1;
+
+  U32 NumWoken = 0;
+  for (Waiter &W : Waiters) {
+    if (!W.ParkedFiber || W.Target != Now)
+      continue;
+
+    Woken[NumWoken++] = W.ParkedFiber;
+    W.ParkedFiber = nullptr; // slot is free again
+  }
+
+  return NumWoken;
 }
 
 U32 Counter::load() const { return Value.load(std::memory_order_seq_cst); }
@@ -21,7 +35,7 @@ bool Counter::addWaiter(Fiber *F, U32 Target) {
     return false; // already satisfied - caller must not park
 
   for (Waiter &W : Waiters) {
-    if (W.ParkedFiber != nullptr)
+    if (W.ParkedFiber)
       continue;
 
     W.ParkedFiber = F;
