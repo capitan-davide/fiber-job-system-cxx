@@ -5,6 +5,7 @@
 
 #include "FJS/Error.h"
 #include "FJS/Types.h"
+#include <utility>
 
 /// Declares a fiber entry function with the required signature:
 /// `[[noreturn]] void Name(void *Arg)`.
@@ -21,6 +22,29 @@
 
 namespace FJS {
 
+using AfterSwitchFn = void (*)(void *);
+
+namespace detail {
+struct AfterSwitch {
+  AfterSwitchFn Fn = nullptr;
+  void *Arg = nullptr;
+};
+
+// One slot per thread: written by the fiber switching away, consumed by the
+// fiber being resumed - always the next thing this thread runs.
+inline thread_local AfterSwitch PendingAfterSwitch;
+} // namespace detail
+
+/// Runs the callback the previous fiber attached to the switch that resumed
+/// us, if any. Called automatically when resuming inside `switchFiber`; a
+/// fiber ENTRY FUNCTION must call it as its first statement (fresh fibers
+/// resume at their entry, bypassing the `switchFiber` return path).
+inline void runAfterSwitchCallback() {
+  detail::AfterSwitch Pending = std::exchange(detail::PendingAfterSwitch, {});
+  if (Pending.Fn)
+    Pending.Fn(Pending.Arg);
+}
+
 struct Fiber {
   void *SP = nullptr;    // parcked stack pointer - only meaningful while parked
   void *Stack = nullptr; // allocation base, kept for freeing
@@ -35,7 +59,8 @@ struct AsmBackend {
 
 inline void *AsmBackend::switchFiber(Fiber &From, Fiber &To, void *Arg) {
   void *TargetSP = To.SP;
-  To.SP = nullptr; // the frame is about to be consumed, safeguard agains double-resume
+  To.SP = nullptr; // the frame is about to be consumed, safeguard agains
+                   // double-resume
   void *Ret = ::FJS_fiberSwitch(&From.SP, TargetSP, Arg);
 
   // From.SP == nullptr is set by whomever switches back into this fiber. When
@@ -108,10 +133,23 @@ inline void destroyFiber(Fiber &F) { return DefaultBackend::destroyFiber(F); }
 /// \param Arg  One-word message for \p To: it emerges as the return value of
 ///             \p To's own `switchFiber` call (or as its EntryFn argument, on
 ///             first run).
+/// \param Callback    Runs st the first thing \p To does after the switch, on
+///                    \p To's stack. This is the only safe place to publish
+///                    \p From (free list, wait list): \p From's stack is
+///                    abandoned by then. Fresh fibers bypass the `switchFiber`
+///                    return path, so every entry function MUST call
+///                    `runAfterSwitchCallback` as its first statement or the
+///                    callback is silently lost.
+/// \param CallbackArg Opaque work handed to \p Callback. Fypically \p From,
+///                    or a struct holding it.
 ///
 /// \return The \p Arg passed by whichever fiber eventually resumes us.
-inline void *switchFiber(Fiber &From, Fiber &To, void *Arg = {}) {
-  return DefaultBackend::switchFiber(From, To, Arg);
+inline void *switchFiber(Fiber &From, Fiber &To, void *Arg = {},
+                         AfterSwitchFn Callback = {}, void *CallbackArg = {}) {
+  detail::PendingAfterSwitch = {Callback, CallbackArg};
+  void *Ret = DefaultBackend::switchFiber(From, To, Arg);
+  runAfterSwitchCallback(); // we were just resumed - run OUR resumer's callback
+  return Ret;
 }
 
 } // namespace FJS

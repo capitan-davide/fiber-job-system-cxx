@@ -20,6 +20,8 @@ int Trace = 0;
 void *SeenArg = nullptr;
 
 template <typename Backend> FIBER_ENTRY_POINT(entry) {
+  FJS::runAfterSwitchCallback();
+
   // NOTE: a *failing* REQUIRE throws, and from a fiber the exception would
   // unwind into the asm trampoline (no unwind info) -> std::terminate. Fine
   // here: a loud death still fails the test. Prefer asserting on the main side
@@ -29,11 +31,14 @@ template <typename Backend> FIBER_ENTRY_POINT(entry) {
   SeenArg = Arg;
   Trace = 1;
 
-  Backend::switchFiber(TestFiber, MainFiber); // switch back to main
+  Backend::switchFiber(TestFiber, MainFiber,
+                       reinterpret_cast<void *>(0xABCD)); // switch back to main
+
   FJS_UNREACHABLE("Reached the end of the fiber entrypoint");
 }
 
 template <typename Backend> FIBER_ENTRY_POINT(increment) {
+  FJS::runAfterSwitchCallback();
   auto *Cnt = reinterpret_cast<unsigned *>(Arg);
   while (true) {
     ++(*Cnt);
@@ -72,7 +77,7 @@ TEMPLATE_TEST_CASE("Fiber switching works", "[Fiber]", FJS::AsmBackend,
   REQUIRE(MainFiber.SP == nullptr); // invalidated by `FJS::switchFiber`
   REQUIRE(Trace == 1);
   REQUIRE(SeenArg == reinterpret_cast<void *>(0x1234));
-  REQUIRE(Ret == nullptr);
+  REQUIRE(Ret == reinterpret_cast<void *>(0xABCD));
 
   // `TestFiber` is still parked at the end of `entry`, here we destroy it.
   Backend::destroyFiber(TestFiber);
@@ -125,4 +130,63 @@ TEST_CASE("FiberPool hands out and reclaims fibers", "[Fiber]") {
   Pool.release(A);
   Pool.release(B);
   Pool.shutdown();
+}
+
+namespace {
+int CallbackRan = 0;
+void *CallbackSeenArg = nullptr;
+int RanAtResumePoint = -1; // CallvackRan as seen at the fiber's resume point
+
+void markCallback(void *Arg) {
+  ++CallbackRan;
+  CallbackSeenArg = Arg;
+}
+
+FIBER_ENTRY_POINT(freshEntry) {
+  FJS::runAfterSwitchCallback();
+  RanAtResumePoint = CallbackRan; // proves it fired before this line
+  FJS::switchFiber(TestFiber, MainFiber);
+  FJS_UNREACHABLE("Reached the end of the fiber entrypoint");
+}
+
+FIBER_ENTRY_POINT(parkedEntry) {
+  FJS::runAfterSwitchCallback();
+  FJS::switchFiber(TestFiber, MainFiber); // park; resumed WITH callback
+  RanAtResumePoint = CallbackRan;         // resume poin: callback already ran
+  FJS::switchFiber(TestFiber, MainFiber);
+  FJS_UNREACHABLE("Reached the end of the fiber entrypoint");
+}
+} // namespace
+
+TEST_CASE("After-switch callback fires on fresh-fiber entry", "[Fiber]") {
+  CallbackRan = 0;
+  RanAtResumePoint = -1;
+  int Token;
+
+  FJS::createFiber(TestFiber, freshEntry);
+  FJS::switchFiber(MainFiber, TestFiber, nullptr, markCallback, &Token);
+
+  REQUIRE(CallbackRan == 1);
+  REQUIRE(CallbackSeenArg == &Token);
+  REQUIRE(RanAtResumePoint == 1);
+
+  FJS::destroyFiber(TestFiber);
+}
+
+TEST_CASE("After-switch callback fires when resuming a parked fiber",
+          "[Fiber]") {
+  CallbackRan = 0;
+  RanAtResumePoint = -1;
+  int Token;
+
+  FJS::createFiber(TestFiber, parkedEntry);
+  FJS::switchFiber(MainFiber, TestFiber); // no callback: entry runs, parsk
+  REQUIRE(CallbackRan == 0);
+
+  FJS::switchFiber(MainFiber, TestFiber, nullptr, markCallback, &Token);
+  REQUIRE(CallbackRan == 1);
+  REQUIRE(CallbackSeenArg == &Token);
+  REQUIRE(RanAtResumePoint == 1);
+
+  FJS::destroyFiber(TestFiber);
 }

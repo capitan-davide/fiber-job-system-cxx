@@ -77,3 +77,18 @@ TEST_CASE("runJobs runs a batch to completion", "[Job]") {
   REQUIRE(Ran == 10);
   REQUIRE(C2.load() == 0);
 }
+
+TEST_CASE("waitForCounter returns immediately when already satisfied",
+          "[Job]") {
+  FJS::JobScheduler S;
+  FJS::initScheduler(S, /*FiberCount=*/2);
+
+  FJS::Counter Done{0};
+  FJS::waitForCounter(S, Done); // default Target = 0: the common case
+
+  FJS::Counter Pending{3};
+  FJS::waitForCounter(S, Pending, 3); // nonzero target, same fast path
+
+  SUCCEED("Fast path returned without switching");
+}
+

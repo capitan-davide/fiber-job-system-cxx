@@ -12,6 +12,8 @@ namespace FJS {
 
 namespace {
 FIBER_ENTRY_POINT(fiberMain) {
+  FJS::runAfterSwitchCallback();
+
   auto *S = static_cast<JobScheduler *>(Arg);
   std::array<Fiber *, Counter::MaxWaiters> Woken;
   while (true) {
@@ -48,6 +50,17 @@ void runJobs(JobScheduler &S, std::span<const JobDecl> Jobs) {
   S.Current = nullptr;                       // nothing is running now
 
   S.Pool.release(F); // parked mid-loop, frame intact - safe to hand out again
+}
+
+void waitForCounter(JobScheduler &S, Counter &C, U32 Target) {
+  // load() may race with a concurrent decrement, and that's fine: if it reads
+  // a stale "not satisfied", the slow path's `Counter::addWaiter` re-checks
+  // under the lock and returns false; if it reads "satisfied" that's genuinely
+  // true (a counter never counts back up).
+  if (C.load() == Target)
+    return; // fast path - no switch, no lock.
+
+  FJS_ABORT("Not implemented");
 }
 
 } // namespace FJS

@@ -33,6 +33,9 @@ void initScheduler(JobScheduler &S, U32 FiberCount = 16);
 /// TODO: Documentation
 void runJobs(JobScheduler &S, std::span<const JobDecl> Jobs);
 
+/// Blocks the CURRENT Fiber (not the thread) until \p C reaches \p Target.
+void waitForCounter(JobScheduler &S, Counter &C, U32 Target = 0);
+
 } // namespace FJS
 
 #endif // FJS_JOB_SCHEDULER_H
