@@ -1,8 +1,10 @@
 add_library(LibFJS STATIC
+  Counter.cpp
   Fiber.cpp
   FiberPool.cpp
   FiberSwitch.S
   JobQueue.cpp
+  JobScheduler.cpp
 )
 
 add_library(FJS::LibFJS ALIAS LibFJS)

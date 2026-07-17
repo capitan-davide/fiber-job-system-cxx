@@ -17,7 +17,7 @@ namespace FJS {
 class FiberPool {
 public:
   /// Creates \p Count fibers, each set up to run \p EntryFn(\p Arg) on first
-  /// resume - in practice always the scheduler's FiberMain.
+  /// resume - in practice always the scheduler's fiberMain.
   void init(U32 Count, void (*EntryFn)(void *), void *Arg);
 
   // Destroys every fiber. All of them must have been released back: a fiber

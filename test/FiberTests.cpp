@@ -40,8 +40,10 @@ template <typename Backend> FIBER_ENTRY_POINT(entry) {
   // here: a loud death still fails the test. Prefer asserting on the main side
   // when possible.
   REQUIRE(TestFiber.SP == nullptr); // invalidated by `FJS::switchFiber`
+
   SeenArg = Arg;
   Trace = 1;
+
   Backend::switchFiber(TestFiber, MainFiber); // switch back to main
   FJS_UNREACHABLE("Reached the end of the fiber entrypoint");
 }
@@ -52,7 +54,6 @@ template <typename Backend> FIBER_ENTRY_POINT(increment) {
     ++(*Cnt);
     Backend::switchFiber(TestFiber, MainFiber);
   }
-  FJS_UNREACHABLE("Reached the end of the fiber entrypoint");
 }
 } // namespace
 

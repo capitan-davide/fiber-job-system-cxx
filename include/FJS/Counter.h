@@ -17,16 +17,16 @@ namespace FJS {
 /// identity that jobs hold pointers to, not a value.
 class Counter {
 public:
-  /// \param Value Number of decrements expected before completion - typically 
+  /// \param Value Number of decrements expected before completion - typically
   ///              the job count of the batch.
   explicit Counter(U32 Value) : Value{Value} {}
 
   /// Records on completed job. Never called more times than the initial
   /// \p Value: the counter would wrap below zero.
-  void decrement() { Value.fetch_sub(1, std::memory_order_seq_cst); }
+  void decrement();
 
   // Current value; 0 means every expected job has finished.
-  U32 load() const { return Value.load(std::memory_order_seq_cst); }
+  U32 load() const;
 
 private:
   std::atomic<U32> Value;

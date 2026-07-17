@@ -86,12 +86,17 @@ struct UcontextHeader {
   void (*EntryFn)(void *);
   void *Arg;
 };
+static_assert(offsetof(UcontextHeader, Ctx) == 0);
 
 [[noreturn]] void ucontextTrampoline(unsigned Hi, unsigned Lo) {
   auto *H = reinterpret_cast<UcontextHeader *>(static_cast<U64>(Hi) << 32 |
                                                static_cast<U64>(Lo));
   H->EntryFn(H->Arg);
-  FJS_UNREACHABLE("Reached the end of the fiber entrypoint");
+
+  // This is an unconditional abort because we don't have a `ud2` safeguard at
+  // the end of trampoline like in FJS_fiberTrampoline.
+  FJS_ABORT("Reached the end of the fiber entrypoint");
+  // FIXME: __builtin_trap() to emit the same `ud2` instruction as FJS_fiberTampoline
 }
 
 } // namespace
@@ -135,8 +140,8 @@ void UcontextBackend::createFiber(Fiber &F, void (*EntryFn)(void *),
 
   // makecontext only passes ints - split the 64-bit pointer in two.
   ::makecontext(&Hi->Ctx, reinterpret_cast<void (*)()>(&ucontextTrampoline), 2,
-                static_cast<U32>(HiAddr >> 32),
-                static_cast<U32>(HiAddr & 0xFFFFFFFF));
+                static_cast<unsigned>(HiAddr >> 32),
+                static_cast<unsigned>(HiAddr & 0xFFFFFFFF));
 
   F.SP = &Hi->Ctx;
 }
@@ -157,10 +162,14 @@ void *UcontextBackend::switchFiber(Fiber &From, Fiber &To, void *Arg) {
   From.SP = &Saved;
   SwitchArg = Arg;
   void *TargetSP = To.SP;
-  To.SP = nullptr; // the frame is about to be consumed, safeguard agains double-resume
+  To.SP = nullptr; // the frame is about to be consumed, safeguard agains
+                   // double-resume
   if (::swapcontext(&Saved, static_cast<ucontext_t *>(TargetSP)) != 0)
     std::abort(); // TODO: Proper error handling
 
+  // From.SP == nullptr is set by whomever switches back into this fiber. When
+  // switching back, From is now the To argument.
+  FJS_ASSERT(From.SP == nullptr, "Fiber resumed without consuming the handle");
   return SwitchArg; // planted by whoever resumed us
 }
 

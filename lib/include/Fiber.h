@@ -3,6 +3,7 @@
 
 #include "FiberSwitch.h"
 
+#include "FJS/Error.h"
 #include "FJS/Types.h"
 
 /// Declares a fiber entry function with the required signature:
@@ -35,7 +36,12 @@ struct AsmBackend {
 inline void *AsmBackend::switchFiber(Fiber &From, Fiber &To, void *Arg) {
   void *TargetSP = To.SP;
   To.SP = nullptr; // the frame is about to be consumed, safeguard agains double-resume
-  return ::FJS_fiberSwitch(&From.SP, TargetSP, Arg);
+  void *Ret = ::FJS_fiberSwitch(&From.SP, TargetSP, Arg);
+
+  // From.SP == nullptr is set by whomever switches back into this fiber. When
+  // switching back, From is now the To argument.
+  FJS_ASSERT(From.SP == nullptr, "Fiber resumed without consuming the handle");
+  return Ret;
 }
 
 struct UcontextBackend {
