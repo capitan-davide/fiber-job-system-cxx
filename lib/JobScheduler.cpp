@@ -1,9 +1,9 @@
 #include "JobScheduler.h"
 
-#include "FJS/Error.h"
+#include "Counter.h"
 #include "Fiber.h"
 
-#include "FJS/Counter.h"
+#include "FJS/Error.h"
 #include "FJS/Job.h"
 
 namespace FJS {

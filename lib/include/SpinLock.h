@@ -1,6 +1,8 @@
 #ifndef FJS_SPINLOCK_H
 #define FJS_SPINLOCK_H
 
+#include "FJS/Error.h"
+
 #include <atomic>
 
 #include <emmintrin.h>
@@ -34,6 +36,38 @@ public:
 
 private:
   std::atomic_flag Flag;
+};
+
+class UnnecessaryLock {
+public:
+  void lock() {
+    // Assert that no one already has the lock.
+    FJS_ASSERT(!Flag, "UnnecessaryLock is not unnecessary");
+
+    // Now lock, so we can detect overlapping critical operations if they
+    // happen.
+    Flag = true;
+  }
+
+  void unlock() {
+    // Assert correct usage that unlock() is only called after acquire().
+    FJS_ASSERT(Flag, "UnnecessaryLock is not unnecessary");
+    Flag = false;
+  }
+
+private:
+  volatile bool Flag;
+};
+
+template <class LockTy> class ScopedLock {
+public:
+  explicit ScopedLock(LockTy &Lock) : Lock{Lock} { Lock.lock(); }
+  ~ScopedLock() { Lock.unlock(); }
+  ScopedLock(const ScopedLock &) = delete;
+  ScopedLock &operator=(const ScopedLock &) = delete;
+
+private:
+  LockTy &Lock;
 };
 
 } // namespace FJS

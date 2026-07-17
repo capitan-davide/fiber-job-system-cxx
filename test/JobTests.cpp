@@ -1,6 +1,6 @@
+#include "Counter.h"
 #include "JobScheduler.h"
 
-#include "FJS/Counter.h"
 #include "FJS/Error.h"
 #include "FJS/Job.h"
 #include "FJS/JobQueue.h"

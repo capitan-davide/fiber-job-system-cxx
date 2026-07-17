@@ -3,32 +3,17 @@
 
 #include "FJS/Error.h"
 
-#include <cerrno>
 #include <csignal>
 
-#include <cstring>
 #include <sys/wait.h>
 #include <unistd.h>
 
 #include <catch2/catch_template_test_macros.hpp>
 #include <catch2/catch_test_macros.hpp>
 
+#include "DeathTest.h"
+
 namespace {
-template <typename Fn> int diesWithSignal(Fn &&F) {
-  pid_t Pid = ::fork();
-  if (Pid == -1)
-    FAIL("fork: " << std::strerror(errno));
-
-  if (Pid == 0) {
-    F();
-    ::_exit(0);
-  }
-
-  int Status;
-  ::waitpid(Pid, &Status, 0);
-  return WIFSIGNALED(Status) ? WTERMSIG(Status) : 0;
-}
-
 FJS::Fiber MainFiber; // note: NO createFiber for this one
 FJS::Fiber TestFiber;
 int Trace = 0;
