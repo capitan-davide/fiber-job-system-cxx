@@ -8,6 +8,7 @@
 #include "FJS/JobQueue.h"
 
 #include <span>
+#include <vector>
 
 namespace FJS {
 
@@ -25,6 +26,10 @@ struct JobScheduler {
   /// The fiber currently executing on this thread - whoever is running needs
   /// it to name itself as `From` in a switch.
   Fiber *Current = nullptr;
+
+  /// Fibers whose wait is over, ready to be resumed. finerMain drains this
+  /// BEFORE pulling new jobs (finish in-flight work before starting more).
+  std::vector<Fiber *> Ready;
 };
 
 /// TODO: Documentation

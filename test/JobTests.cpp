@@ -7,10 +7,12 @@
 
 #include <array>
 
+#include <string_view>
 #include <sys/wait.h>
 #include <unistd.h>
 
 #include <catch2/catch_test_macros.hpp>
+#include <vector>
 
 namespace {
 JOB_ENTRY_POINT(jobEntryA) {}
@@ -92,3 +94,54 @@ TEST_CASE("waitForCounter returns immediately when already satisfied",
   SUCCEED("Fast path returned without switching");
 }
 
+namespace {
+struct WaitTestCtx {
+  FJS::JobScheduler *S;
+  FJS::Counter *C;
+  std::vector<std::string_view> *Log;
+};
+
+JOB_ENTRY_POINT(waiter) {
+  auto *Ctx = static_cast<WaitTestCtx *>(Arg);
+  // A runtime value captured BEFORE parking must survive in this frame.
+  const FJS::U32 Before = Ctx->C->load(); // 1
+  Ctx->Log->push_back("W:waiting");
+  FJS::waitForCounter(*Ctx->S, *Ctx->C);
+  Ctx->Log->push_back(Before == 1 ? "W:resumed" : "W:corrupt");
+}
+
+JOB_ENTRY_POINT(worker) {
+  auto *Ctx = static_cast<WaitTestCtx *>(Arg);
+  Ctx->Log->push_back("D:ran");
+}
+} // namespace
+
+TEST_CASE("waitForCounter parks the fiber and resumes it on completion",
+          "[Job]") {
+  FJS::JobScheduler S;
+  // Exactly 2: the batch fiber + the one on the slow path acquires. A third
+  // acquire would mean we're leaking fibers per wait - let it abort.
+  FJS::initScheduler(S, /*FiberCount=*/2);
+
+  FJS::Counter C{1};
+  std::vector<std::string_view> Log;
+  WaitTestCtx Ctx{&S, &C, &Log};
+
+  // W first, so it hits the slow path while C is still 1. D carries Done = &C:
+  // finishing it is what wakes W.
+  FJS::JobDecl Jobs[] = {
+      {.EntryFn = waiter, .Param = &Ctx},
+      {.EntryFn = worker, .Param = &Ctx, .Done = &C},
+  };
+  FJS::runJobs(S, Jobs);
+
+  REQUIRE(Log.size() == 3);
+  REQUIRE(Log[0] == "W:waiting"); // parked BEFORE D ran...
+  REQUIRE(Log[1] == "D:ran");     // ... so the wait was real,
+  REQUIRE(Log[2] == "W:resumed"); // ... and the wake-up landed.
+  REQUIRE(C.load() == 0);
+
+  // Both fibers home again - including the slow path's extra one. This is the
+  // assert that catches a forgotten releaseFiber.
+  S.Pool.shutdown();
+}

@@ -18,7 +18,8 @@ void FiberPool::init(U32 Count, void (*EntryFn)(void *), void *Arg) {
 void FiberPool::shutdown() {
   // Every fiber must be back in the pool: a missing one is still parked
   // somewhere and would leak (or worse, resumed later).
-  FJS_ASSERT(Free.size() == Fibers.size(), "");
+  FJS_ASSERT(Free.size() == Fibers.size(),
+             "Trying to free the pool while fibers are running");
   for (Fiber &F : Fibers)
     destroyFiber(F);
   Fibers.clear();
@@ -33,8 +34,6 @@ Fiber *FiberPool::acquire() {
   return F;
 }
 
-void FiberPool::release(Fiber *F) {
-  Free.push_back(F);
-}
+void FiberPool::release(Fiber *F) { Free.push_back(F); }
 
 } // namespace FJS
