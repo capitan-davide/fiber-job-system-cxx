@@ -22,14 +22,12 @@ void *SeenArg = nullptr;
 template <typename Backend> FIBER_ENTRY_POINT(entry) {
   FJS::runAfterSwitchCallback();
 
-  // NOTE: a *failing* REQUIRE throws, and from a fiber the exception would
-  // unwind into the asm trampoline (no unwind info) -> std::terminate. Fine
-  // here: a loud death still fails the test. Prefer asserting on the main side
-  // when possible.
-  REQUIRE(TestFiber.SP == nullptr); // invalidated by `FJS::switchFiber`
-
-  SeenArg = Arg;
-  Trace = 1;
+  // Update SeenArg and Trace only if TestFiber.SP is the expected value. This
+  // way we can indirectly assert TestFiber.SP back in MainFiber.
+  if (TestFiber.SP == nullptr) { // invalidated by `switchFiber`
+    SeenArg = Arg;
+    Trace = 1;
+  }
 
   Backend::switchFiber(TestFiber, MainFiber,
                        reinterpret_cast<void *>(0xABCD)); // switch back to main

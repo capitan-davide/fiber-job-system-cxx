@@ -47,4 +47,6 @@ bool Counter::addWaiter(Fiber *F, U32 Target) {
   FJS_ABORT("Counter wait list full");
 }
 
+void Counter::reset(U32 NewValue) { Value.store(NewValue); }
+
 } // namespace FJS

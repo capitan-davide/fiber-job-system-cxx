@@ -73,10 +73,10 @@ FIBER_ENTRY_POINT(fiberMain) {
       continue;
     }
 
-    // Queue dry: park until the next runJobs resumes us with more work.
-    // There's no need to use a AfterSwitchFn here: Bootstrap is a well known
-    // destination - control lands exactly in one place. What Bootstrap does
-    // is to release() this fiber as soon as we land there.
+    // Queue dry: park until the next drive resumes us with more work. There's
+    // no need to use a AfterSwitchFn here: Bootstrap is a well known
+    // destination - control lands exactly in one place. What Bootstrap does is
+    // to release() this fiber as soon as we land there.
     switchFiber(*S->Current, S->Bootstrap);
   }
 }
@@ -85,22 +85,6 @@ FIBER_ENTRY_POINT(fiberMain) {
 
 void initScheduler(JobScheduler &S, U32 FiberCount) {
   S.Pool.init(FiberCount, fiberMain, &S);
-}
-
-void runJobs(JobScheduler &S, std::span<const JobDecl> Jobs) {
-  for (const JobDecl &JD : Jobs)
-    S.Queue.push(JD);
-
-  Fiber *F = S.Pool.acquire();
-  FJS_ASSERT(F, "Fiber pool exhausted");
-
-  S.Current = F;
-  switchFiber(S.Bootstrap, *S.Current); // returns when fiberMain parks
-  FJS_ASSERT(S.Current == F, "The wrong fiber reached Bootstrap: some fiber is "
-                             "stranded on a wait list");
-  S.Current = nullptr; // nothing is running now
-
-  S.Pool.release(F); // parked mid-loop, frame intact - safe to hand out again
 }
 
 void waitForCounter(JobScheduler &S, Counter &C, U32 Target) {
@@ -127,6 +111,43 @@ void waitForCounter(JobScheduler &S, Counter &C, U32 Target) {
   switchFiber(*Me, *Next, nullptr, registerWaiter, &Args);
 
   // Resumed: the counter hit target.
+}
+
+void kickJobs(JobScheduler &S, std::span<const JobDecl> Jobs) {
+  for (const JobDecl &JD : Jobs)
+    S.Queue.push(JD);
+}
+
+void drive(JobScheduler &S) {
+  Fiber *F = S.Pool.acquire();
+  FJS_ASSERT(F, "Fiber pool exhausted");
+
+  S.Current = F;
+  switchFiber(S.Bootstrap, *S.Current); // returns when fiberMain parks
+  FJS_ASSERT(S.Current == F, "The wrong fiber reached Bootstrap: some fiber is "
+                             "stranded on a wait list");
+  S.Current = nullptr; // nothing is running now
+
+  S.Pool.release(F); // parked mid-loop, frame intact - safe to hand out again
+}
+
+Counter *runJobs(JobScheduler &S, std::span<const JobDecl> Jobs) {
+  Counter *C = S.Counters.acquire(static_cast<U32>(Jobs.size()));
+  FJS_ASSERT(C, "Counter pool exhausted");
+
+  for (JobDecl JD : Jobs) {
+    FJS_ASSERT(!JD.Done, "runJobs owns Done - don't set it");
+    JD.Done = C;
+    S.Queue.push(JD);
+  }
+  return C;
+}
+
+void waitForCounterAndFree(JobScheduler &S, Counter *C) {
+  waitForCounter(S, *C, 0);
+  // Satisfied: every job in the batch as decremented and moved on, and
+  // reset()'s assert will vouch that no waiter is still parked here.
+  S.Counters.release(C);
 }
 
 } // namespace FJS

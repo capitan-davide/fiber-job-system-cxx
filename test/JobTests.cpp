@@ -1,12 +1,15 @@
 #include "Counter.h"
+#include "FJS/Types.h"
 #include "JobScheduler.h"
 
-#include "FJS/Error.h"
 #include "FJS/Job.h"
 #include "FJS/JobQueue.h"
 
+#include <algorithm>
 #include <array>
+#include <span>
 
+#include <span>
 #include <string_view>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -52,7 +55,7 @@ TEST_CASE("Counter counts down to zero", "[Job]") {
   REQUIRE(C.load() == 0);
 }
 
-TEST_CASE("runJobs runs a batch to completion", "[Job]") {
+TEST_CASE("Kicked jobs runs a batch to completion", "[Job]") {
   FJS::JobScheduler S;
   FJS::initScheduler(S, /*FiberCount=*/2);
 
@@ -62,9 +65,11 @@ TEST_CASE("runJobs runs a batch to completion", "[Job]") {
   for (auto &JD : Jobs)
     JD = {.EntryFn = countJob, .Param = &Ran, .Done = &C1};
 
-  // FJS::runJobs acquires the first fiber, this fiber will consume all five
+  FJS::kickJobs(S, Jobs);
+
+  // FJS::drive acquires the first fiber, this fiber will consume all five
   // jobs - the second fiber is never touched.
-  FJS::runJobs(S, Jobs);
+  FJS::drive(S);
   REQUIRE(Ran == 5);
   REQUIRE(C1.load() == 0);
 
@@ -72,10 +77,12 @@ TEST_CASE("runJobs runs a batch to completion", "[Job]") {
   for (auto &JD : Jobs)
     JD.Done = &C2;
 
-  // After the first call to FJS::runJobs terminates, the first fiber is placed
-  // back in to the LIFO queue. The second call to FJS::runJobs will reuse the
+  FJS::kickJobs(S, Jobs); // second batch: proves fiber reuse works
+
+  // After the first call to FJS::drive terminates, the first fiber is placed
+  // back in to the LIFO queue. The second call to FJS::drive will reuse the
   // same fiber to complete all five jobs again.
-  FJS::runJobs(S, Jobs); // second batch: proves fiber reuse works
+  FJS::drive(S);
   REQUIRE(Ran == 10);
   REQUIRE(C2.load() == 0);
 }
@@ -133,7 +140,8 @@ TEST_CASE("waitForCounter parks the fiber and resumes it on completion",
       {.EntryFn = waiter, .Param = &Ctx},
       {.EntryFn = worker, .Param = &Ctx, .Done = &C},
   };
-  FJS::runJobs(S, Jobs);
+  FJS::kickJobs(S, Jobs);
+  FJS::drive(S);
 
   REQUIRE(Log.size() == 3);
   REQUIRE(Log[0] == "W:waiting"); // parked BEFORE D ran...
@@ -143,5 +151,52 @@ TEST_CASE("waitForCounter parks the fiber and resumes it on completion",
 
   // Both fibers home again - including the slow path's extra one. This is the
   // assert that catches a forgotten releaseFiber.
+  S.Pool.shutdown();
+}
+
+namespace {
+struct AnimateObject {
+  FJS::U32 Frame = 0;
+};
+
+struct AnimateTestCtx {
+  FJS::JobScheduler *S;
+  std::span<AnimateObject> Objects;
+  bool BatchDone = false;
+};
+
+JOB_ENTRY_POINT(animateObject) { ++static_cast<AnimateObject *>(Arg)->Frame; }
+
+JOB_ENTRY_POINT(animateAllObjects) {
+  auto *Ctx = static_cast<AnimateTestCtx *>(Arg);
+
+  std::array<FJS::JobDecl, 100> Jobs;
+  for (FJS::U32 I = 0; I < Jobs.size(); ++I)
+    Jobs[I] = {.EntryFn = animateObject, .Param = &Ctx->Objects[I]};
+
+  FJS::Counter *C = FJS::runJobs(*Ctx->S, Jobs);
+  FJS::waitForCounterAndFree(*Ctx->S, C); // C is dead past this line
+
+  Ctx->BatchDone = true; // logged strictly AFTER all 100 completed
+}
+} // namespace
+
+TEST_CASE("AnimateAllObjects: fan out 100 jobs, wait, free the counter",
+          "[Job]") {
+  FJS::JobScheduler S;
+  // 2 again: the outer job's fiber + the one its wait acquires.
+  FJS::initScheduler(S, /*FiberCount=*/2);
+
+  std::array<AnimateObject, 100> Objects;
+  AnimateTestCtx Ctx{&S, Objects};
+
+  FJS::JobDecl Outer[] = {{.EntryFn = animateAllObjects, .Param = &Ctx}};
+  FJS::kickJobs(S, Outer);
+  FJS::drive(S);
+
+  REQUIRE(Ctx.BatchDone);
+  REQUIRE(std::ranges::all_of(
+      Objects, [](const AnimateObject &Obj) { return Obj.Frame == 1; }));
+
   S.Pool.shutdown();
 }

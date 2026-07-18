@@ -30,6 +30,9 @@ class Counter {
 public:
   static constexpr U32 MaxWaiters = 4;
 
+  /// Pool stock only: an idle counter (value 0, no waiters) awaiting reset()
+  Counter() = default;
+
   /// \param Value Number of decrements expected before completion - typically
   ///              the job count of the batch.
   explicit Counter(U32 Value) : Value{Value} {}
@@ -46,6 +49,13 @@ public:
   /// \return false if the value is ALREADY at Target - the caller must not
   ///         park, nothing was registered.
   bool addWaiter(Fiber *F, U32 Target);
+
+private:
+  friend class CounterPool; // the only code allower to rearm the counter
+
+  /// Rearms a recycled counter for a new batch of \p Value jobs. Only the pool
+  /// calls this - and only on counters nobody can see.
+  void reset(U32 NewValue);
 
 private:
   std::atomic<U32> Value;

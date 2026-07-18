@@ -1,5 +1,6 @@
 add_library(LibFJS STATIC
   Counter.cpp
+  CounterPool.cpp
   Fiber.cpp
   FiberPool.cpp
   FiberSwitch.S
