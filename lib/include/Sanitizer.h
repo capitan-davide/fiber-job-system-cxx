@@ -3,17 +3,21 @@
 
 // GCC defines __SANITIZE_ADDRESS__, Clang uses __has_feature
 #if defined(__SANITIZE_ADDRESS__)
+#define FJS_SANITIZED 1
 #define FJS_ASAN 1
 #elif defined(__has_feature)
 #if __has_feature(address_sanitizer)
+#define FJS_SANITIZED 1
 #define FJS_ASAN 1
 #endif
 #endif
 
 #if defined(__SANITIZE_THREAD__)
+#define FJS_SANITIZED 1
 #define FJS_TSAN 1
 #elif defined(__has_feature)
 #if __has_feature(thread_sanitizer)
+#define FJS_SANITIZED 1
 #define FJS_TSAN 1
 #endif
 #endif

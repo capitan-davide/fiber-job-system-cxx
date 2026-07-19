@@ -32,7 +32,13 @@ target_include_directories(
 # stack per fiber. On kernels without CET userspace support this option has no
 # runtime effect (the flag only strips the binary's `endbr64` pads and CET
 # markings).
-target_compile_options(LibFJS PUBLIC "-fcf-protection=none")
+target_compile_options(LibFJS
+  PUBLIC
+    -fcf-protection=none
+  PRIVATE
+    -fno-exceptions
+    -fno-rtti
+)
 
 if(FJS_USE_UCONTEXT)
   target_compile_definitions(LibFJS PRIVATE FJS_USE_UCONTEXT)

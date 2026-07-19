@@ -6,12 +6,16 @@
 ///
 /// Unlike `FIBER_ENTRY_POINT`, a job entry *returns normally* - the scheduler
 /// regains control when it does and decrements the job's `Done` counter.
-#define JOB_ENTRY_POINT(Name) void Name(void *Arg)
+///
+/// Exceptions must NOT escape a job: the library is built with
+/// `-fno-exceptions`, and unwinding across a fiber switch lands on the forged
+/// trampoline frame, where there is nothing valid to unwind through.
+#define JOB_ENTRY_POINT(Name) void Name(void *Arg) noexcept
 
 namespace FJS {
 
 /// Signature of a job entry function. See `JOB_ENTRY_POINT`.
-using JobEntry = void (*)(void *Param);
+using JobEntry = void (*)(void *Param) noexcept;
 
 class Counter;
 

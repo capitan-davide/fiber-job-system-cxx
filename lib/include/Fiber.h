@@ -6,6 +6,7 @@
 
 #include "FJS/Error.h"
 #include "FJS/Types.h"
+
 #include <utility>
 
 /// Declares a fiber entry function with the required signature:
@@ -19,7 +20,11 @@
 /// attribute makes the compiler enforce the contract: any code path that falls
 /// off the end becomes a warning at the definition instead of a SIGILL at
 /// runtime.
-#define FIBER_ENTRY_POINT(Name) [[noreturn]] void Name(void *Arg)
+///
+/// Exceptions must NOT escape a job: the library is built with
+/// `-fno-exceptions`, and unwinding across a fiber switch lands on the forged
+/// trampoline frame, where there is nothing valid to unwind through.
+#define FIBER_ENTRY_POINT(Name) [[noreturn]] void Name(void *Arg) noexcept
 
 namespace FJS {
 

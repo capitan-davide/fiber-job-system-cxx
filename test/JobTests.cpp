@@ -59,8 +59,7 @@ TEST_CASE("Counter counts down to zero", "[Job]") {
 }
 
 TEST_CASE("Kicked jobs runs a batch to completion", "[Job]") {
-  FJS::JobScheduler S;
-  FJS::initScheduler(S, /*FiberCount=*/2);
+  FJS::JobScheduler S({.FiberCount = 2});
 
   unsigned Ran = 0;
   FJS::Counter C1(5);
@@ -92,8 +91,7 @@ TEST_CASE("Kicked jobs runs a batch to completion", "[Job]") {
 
 TEST_CASE("waitForCounter returns immediately when already satisfied",
           "[Job]") {
-  FJS::JobScheduler S;
-  FJS::initScheduler(S, /*FiberCount=*/2);
+  FJS::JobScheduler S({.FiberCount = 2});
 
   // Pose as a worker, but no current fiber: the fast path never needs one, and
   // a slow path taken by mistake would abort on the nullptr - the test asserts
@@ -112,8 +110,7 @@ TEST_CASE("waitForCounter returns immediately when already satisfied",
 }
 
 TEST_CASE("waitForCounter aborts outside a worker thread", "[Job]") {
-  FJS::JobScheduler S;
-  FJS::initScheduler(S, /*FiberCount=*/2);
+  FJS::JobScheduler S({.FiberCount = 2});
   FJS::Counter C{0}; // satisfied - proves even the fast path is fenced
 
   FJS_REQUIRE_DEATH(SIGABRT, [&] { FJS::waitForCounter(S, C); });
@@ -143,10 +140,9 @@ JOB_ENTRY_POINT(worker) {
 
 TEST_CASE("waitForCounter parks the fiber and resumes it on completion",
           "[Job]") {
-  FJS::JobScheduler S;
   // Exactly 2: the batch fiber + the one on the slow path acquires. A third
   // acquire would mean we're leaking fibers per wait - let it abort.
-  FJS::initScheduler(S, /*FiberCount=*/2);
+  FJS::JobScheduler S({.FiberCount = 2});
 
   FJS::Counter C{1};
   std::vector<std::string_view> Log;
@@ -169,7 +165,7 @@ TEST_CASE("waitForCounter parks the fiber and resumes it on completion",
 
   // Both fibers home again - including the slow path's extra one. This is the
   // assert that catches a forgotten releaseFiber.
-  S.Pool.shutdown();
+  FJS::shutdownScheduler(S);
 }
 
 namespace {
@@ -201,9 +197,8 @@ JOB_ENTRY_POINT(animateAllObjects) {
 
 TEST_CASE("AnimateAllObjects: fan out 100 jobs, wait, free the counter",
           "[Job]") {
-  FJS::JobScheduler S;
-  // 2 again: the outer job's fiber + the one its wait acquires.
-  FJS::initScheduler(S, /*FiberCount=*/2);
+  FJS::JobScheduler S({.FiberCount = 2}); // 2 again: the outer job's fiber +
+                                          // the one its wait acquires.
 
   std::array<AnimateObject, 100> Objects;
   AnimateTestCtx Ctx{&S, Objects};
@@ -216,5 +211,5 @@ TEST_CASE("AnimateAllObjects: fan out 100 jobs, wait, free the counter",
   REQUIRE(std::ranges::all_of(
       Objects, [](const AnimateObject &Obj) { return Obj.Frame == 1; }));
 
-  S.Pool.shutdown();
+  FJS::shutdownScheduler(S);
 }

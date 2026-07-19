@@ -14,8 +14,16 @@
 
 namespace FJS {
 
+struct JobSchedulerConfig {
+  U32 FiberCount = 16;
+};
+
 /// Single-threaded scheduler state.
-struct JobScheduler {
+class JobScheduler {
+public:
+  explicit JobScheduler(const JobSchedulerConfig &Config = {});
+
+public: // TODO: This has to become private at some point
   JobQueue Queue; // pending jobs - FIFO
   FiberPool Pool; // fibers that run fiberMain when idle
   CounterPool Counters; // issued by runJobs, reclaimed by waitForCountersAndFree
@@ -26,8 +34,10 @@ struct JobScheduler {
   SpinLock ReadyLock;
 };
 
-/// TODO: Documentation
-void initScheduler(JobScheduler &S, U32 FiberCount = 16);
+/// Tears the scheduler down and audits for leaks: every fiber back in the
+/// pool, every counter returned. Call after the last worker has been joined
+/// (with workers alive this is a data race, and the audir would lie).
+void shutdownScheduler(JobScheduler &S);
 
 /// Blocks the CURRENT Fiber (not the thread) until \p C reaches \p Target.
 void waitForCounter(JobScheduler &S, Counter &C, U32 Target = 0);

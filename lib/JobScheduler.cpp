@@ -100,9 +100,11 @@ FIBER_ENTRY_POINT(fiberMain) {
 
 } // namespace
 
-void initScheduler(JobScheduler &S, U32 FiberCount) {
-  S.Pool.init(FiberCount, fiberMain, &S);
+JobScheduler::JobScheduler(const JobSchedulerConfig &Config) {
+  Pool.init(Config.FiberCount, fiberMain, this);
 }
+
+void shutdownScheduler(JobScheduler &S) { S.Pool.shutdown(); }
 
 void waitForCounter(JobScheduler &S, Counter &C, U32 Target) {
   FJS_ASSERT(ThisWorker, "Use of waitForCounter outside a worker thread");

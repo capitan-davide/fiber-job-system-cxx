@@ -1,6 +1,8 @@
 #ifndef FJS_TEST_DEATH_TEST_H
 #define FJS_TEST_DEATH_TEST_H
 
+#include "Sanitizer.h"
+
 #include <cerrno>
 #include <cstdlib>
 #include <cstring>
@@ -10,14 +12,10 @@
 
 #include <catch2/catch_test_macros.hpp>
 
-// Sanitizers install their own SIGSEGV/SIGABRT handlers: a sanitizer child
-// reports and exits instead of dying BT the signal, so death-by-signal is
-// unobserved under then.
-#if defined(__SANITIZE_THREAD__) || defined(__SANITIZE_ADDRESS__)
-#define FJS_SANITIZED 1
-#elif __has_feature(thread_sanitizer) || __has_feature(address_sanitizer)
-#define FJS_SANITIZED 1
-#endif
+// Corollary of Job.h's no-exceptions rule for tests: no REQUIRE, SKIP, or FAIL
+// inside JOB_ENTRY_POINT / FIBER_ENTRY_POINT bodies - they throw. Record into a
+// Log/atomic instead and assert after the run, once the scheduler has handed
+// control back (see JobTests' Log pattern).
 
 namespace FJS::testing {
 
