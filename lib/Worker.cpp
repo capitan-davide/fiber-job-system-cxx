@@ -1,0 +1,58 @@
+#include "Worker.h"
+#include "Shutdown.h"
+#include "SpinLock.h"
+
+#include "FJS/Error.h"
+
+#include <cstring>
+
+#include <pthread.h>
+#include <sched.h>
+
+namespace {
+
+void workerMain() {
+  while (!FJS::isShutdownRequested())
+    FJS_PAUSE();
+}
+
+} // namespace
+
+namespace FJS {
+
+void startWorkers(WorkerPool &W, U32 Count) {
+  FJS_ASSERT(
+      areShutdownSignalsBlocked(),
+      "Bad sigmask, startWorkers called without blocking shutdown signals");
+
+  const U32 MaxWorkers = std::thread::hardware_concurrency();
+  FJS_ASSERT(Count <= MaxWorkers,
+             "{} workers requested but only {} cores available", Count,
+             MaxWorkers);
+
+  W.Threads.reserve(Count);
+  for (U32 I = 0; I < W.Threads.capacity(); ++I) {
+    std::thread &T = W.Threads.emplace_back(workerMain);
+
+    cpu_set_t Cpus;
+    CPU_ZERO(&Cpus);
+    CPU_SET(I, &Cpus);
+    int Err = pthread_setaffinity_np(T.native_handle(), sizeof(Cpus), &Cpus);
+    FJS_ASSERT(!Err, "Failed to pin worker: {}", std::strerror(Err));
+
+    // Thread names: kernel buffer is 16 bytes INCLUDING the '\0' - 15 usable
+    // chars, and longer names fail (ERANGE), not truncate. Shows up in gdb,
+    // htop, and TSan reports.
+    Err = pthread_setname_np(T.native_handle(),
+                             std::format("fjs-w{}", I).c_str());
+    FJS_ASSERT(!Err, "Failed to name worker {}: {}", I, std::strerror(Err));
+  }
+}
+
+void joinWorkers(WorkerPool &W) {
+  for (std::thread &T : W.Threads)
+    T.join();
+  W.Threads.clear();
+}
+
+} // namespace FJS

@@ -1,9 +1,9 @@
 #include "Counter.h"
-#include "FJS/Types.h"
+#include "JobQueue.h"
 #include "JobScheduler.h"
 
 #include "FJS/Job.h"
-#include "FJS/JobQueue.h"
+#include "FJS/Types.h"
 
 #include <algorithm>
 #include <array>

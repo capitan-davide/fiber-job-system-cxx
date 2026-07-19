@@ -4,9 +4,9 @@
 #include "CounterPool.h"
 #include "Fiber.h"
 #include "FiberPool.h"
+#include "JobQueue.h"
 
 #include "FJS/Job.h"
-#include "FJS/JobQueue.h"
 
 #include <span>
 #include <vector>

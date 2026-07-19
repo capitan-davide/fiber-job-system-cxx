@@ -2,6 +2,7 @@
 #define FJS_TEST_DEATH_TEST_H
 
 #include <cerrno>
+#include <cstdlib>
 #include <cstring>
 
 #include <sys/wait.h>
@@ -18,7 +19,7 @@ template <typename Fn> int diesWithSignal(Fn &&F) {
 
   if (Pid == 0) {
     F();
-    ::_exit(0);
+    std::_Exit(0);
   }
 
   int Status;

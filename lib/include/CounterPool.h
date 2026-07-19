@@ -2,6 +2,7 @@
 #define FJS_COUNTER_POOL_H
 
 #include "Counter.h"
+#include "SpinLock.h"
 
 #include "FJS/Types.h"
 
@@ -33,6 +34,7 @@ public:
 private:
   std::array<Counter, MaxCounters> Counters;
   std::vector<Counter *> Free; // LIFO
+  SpinLock Lock;
 };
 
 } // namespace FJS

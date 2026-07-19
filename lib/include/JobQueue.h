@@ -1,6 +1,8 @@
 #ifndef FJS_JOB_QUEUE_H
 #define FJS_JOB_QUEUE_H
 
+#include "SpinLock.h"
+
 #include "FJS/Job.h"
 
 #include <deque>
@@ -19,6 +21,7 @@ public:
 
 private:
   std::deque<JobDecl> Jobs;
+  SpinLock Lock;
 };
 
 } // namespace FJS

@@ -59,17 +59,6 @@ private:
   volatile bool Flag;
 };
 
-template <class LockTy> class ScopedLock {
-public:
-  explicit ScopedLock(LockTy &Lock) : Lock{Lock} { Lock.lock(); }
-  ~ScopedLock() { Lock.unlock(); }
-  ScopedLock(const ScopedLock &) = delete;
-  ScopedLock &operator=(const ScopedLock &) = delete;
-
-private:
-  LockTy &Lock;
-};
-
 } // namespace FJS
 
 #endif // FJS_SPINLOCK_H

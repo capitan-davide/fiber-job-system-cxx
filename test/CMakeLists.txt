@@ -2,6 +2,8 @@ add_executable(tests
   CounterTests.cpp
   FiberTests.cpp
   JobTests.cpp
+  ShutdownTests.cpp
+  WorkerTests.cpp
 )
 
 target_link_libraries(

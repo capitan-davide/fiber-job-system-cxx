@@ -1,6 +1,8 @@
 #include "CounterPool.h"
 #include "Counter.h"
 
+#include <mutex>
+
 namespace FJS {
 
 CounterPool::CounterPool() {
@@ -10,6 +12,8 @@ CounterPool::CounterPool() {
 }
 
 Counter *CounterPool::acquire(U32 Value) {
+  std::lock_guard G{Lock};
+
   if (Free.empty())
     return nullptr; // caller asserts same protocol as FiberPool
   Counter *C = Free.back();
@@ -19,7 +23,9 @@ Counter *CounterPool::acquire(U32 Value) {
 }
 
 void CounterPool::release(Counter *C) {
-  // A coutner must release clean: a parked waiter here is a fiber that will
+  std::lock_guard G{Lock};
+
+  // A counter must release clean: a parked waiter here is a fiber that will
   // never be woken.
   for (const Waiter &W : C->Waiters)
     FJS_ASSERT(!W.ParkedFiber, "Counter released while still has waiters");

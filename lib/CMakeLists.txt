@@ -6,6 +6,8 @@ add_library(LibFJS STATIC
   FiberSwitch.S
   JobQueue.cpp
   JobScheduler.cpp
+  Shutdown.cpp
+  Worker.cpp
 )
 
 add_library(FJS::LibFJS ALIAS LibFJS)

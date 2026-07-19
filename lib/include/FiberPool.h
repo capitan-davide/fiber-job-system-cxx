@@ -2,6 +2,7 @@
 #define FJS_FIBER_POOL_H
 
 #include "Fiber.h"
+#include "SpinLock.h"
 
 #include "FJS/Types.h"
 
@@ -35,6 +36,7 @@ public:
 private:
   std::vector<Fiber> Fibers;
   std::vector<Fiber *> Free;
+  SpinLock Lock;
 };
 
 } // namespace FJS
