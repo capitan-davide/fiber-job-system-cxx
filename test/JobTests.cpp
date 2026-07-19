@@ -67,11 +67,11 @@ TEST_CASE("Kicked jobs runs a batch to completion", "[Job]") {
   for (auto &JD : Jobs)
     JD = {.EntryFn = countJob, .Param = &Ran, .Done = &C1};
 
-  FJS::kickJobs(S, Jobs);
+  S.kickJobs(Jobs);
 
   // FJS::drive acquires the first fiber, this fiber will consume all five
   // jobs - the second fiber is never touched.
-  FJS::drive(S);
+  S.drive();
   REQUIRE(Ran == 5);
   REQUIRE(C1.load() == 0);
 
@@ -79,12 +79,12 @@ TEST_CASE("Kicked jobs runs a batch to completion", "[Job]") {
   for (auto &JD : Jobs)
     JD.Done = &C2;
 
-  FJS::kickJobs(S, Jobs); // second batch: proves fiber reuse works
+  S.kickJobs(Jobs); // second batch: proves fiber reuse works
 
   // After the first call to FJS::drive terminates, the first fiber is placed
   // back in to the LIFO queue. The second call to FJS::drive will reuse the
   // same fiber to complete all five jobs again.
-  FJS::drive(S);
+  S.drive();
   REQUIRE(Ran == 10);
   REQUIRE(C2.load() == 0);
 }
@@ -100,10 +100,10 @@ TEST_CASE("waitForCounter returns immediately when already satisfied",
   FJS::ThisWorker = &Ctx;
 
   FJS::Counter Done{0};
-  FJS::waitForCounter(S, Done); // default Target = 0: the common case
+  S.waitForCounter(Done); // default Target = 0: the common case
 
   FJS::Counter Pending{3};
-  FJS::waitForCounter(S, Pending, 3); // nonzero target, same fast path
+  S.waitForCounter(Pending, 3); // nonzero target, same fast path
 
   FJS::ThisWorker = nullptr;
   SUCCEED("Fast path returned without switching");
@@ -113,7 +113,7 @@ TEST_CASE("waitForCounter aborts outside a worker thread", "[Job]") {
   FJS::JobScheduler S({.FiberCount = 2});
   FJS::Counter C{0}; // satisfied - proves even the fast path is fenced
 
-  FJS_REQUIRE_DEATH(SIGABRT, [&] { FJS::waitForCounter(S, C); });
+  FJS_REQUIRE_DEATH(SIGABRT, [&] { S.waitForCounter(C); });
 }
 
 namespace {
@@ -128,7 +128,7 @@ JOB_ENTRY_POINT(waiter) {
   // A runtime value captured BEFORE parking must survive in this frame.
   const FJS::U32 Before = Ctx->C->load(); // 1
   Ctx->Log->push_back("W:waiting");
-  FJS::waitForCounter(*Ctx->S, *Ctx->C);
+  Ctx->S->waitForCounter(*Ctx->C);
   Ctx->Log->push_back(Before == 1 ? "W:resumed" : "W:corrupt");
 }
 
@@ -154,8 +154,8 @@ TEST_CASE("waitForCounter parks the fiber and resumes it on completion",
       {.EntryFn = waiter, .Param = &Ctx},
       {.EntryFn = worker, .Param = &Ctx, .Done = &C},
   };
-  FJS::kickJobs(S, Jobs);
-  FJS::drive(S);
+  S.kickJobs(Jobs);
+  S.drive();
 
   REQUIRE(Log.size() == 3);
   REQUIRE(Log[0] == "W:waiting"); // parked BEFORE D ran...
@@ -165,7 +165,7 @@ TEST_CASE("waitForCounter parks the fiber and resumes it on completion",
 
   // Both fibers home again - including the slow path's extra one. This is the
   // assert that catches a forgotten releaseFiber.
-  FJS::shutdownScheduler(S);
+  S.shutdown();
 }
 
 namespace {
@@ -188,8 +188,8 @@ JOB_ENTRY_POINT(animateAllObjects) {
   for (FJS::U32 I = 0; I < Jobs.size(); ++I)
     Jobs[I] = {.EntryFn = animateObject, .Param = &Ctx->Objects[I]};
 
-  FJS::Counter *C = FJS::runJobs(*Ctx->S, Jobs);
-  FJS::waitForCounterAndFree(*Ctx->S, C); // C is dead past this line
+  FJS::Counter *C = Ctx->S->runJobs(Jobs);
+  Ctx->S->waitForCounterAndFree(C); // C is dead past this line
 
   Ctx->BatchDone = true; // logged strictly AFTER all 100 completed
 }
@@ -204,12 +204,12 @@ TEST_CASE("AnimateAllObjects: fan out 100 jobs, wait, free the counter",
   AnimateTestCtx Ctx{&S, Objects};
 
   FJS::JobDecl Outer[] = {{.EntryFn = animateAllObjects, .Param = &Ctx}};
-  FJS::kickJobs(S, Outer);
-  FJS::drive(S);
+  S.kickJobs(Outer);
+  S.drive();
 
   REQUIRE(Ctx.BatchDone);
   REQUIRE(std::ranges::all_of(
       Objects, [](const AnimateObject &Obj) { return Obj.Frame == 1; }));
 
-  FJS::shutdownScheduler(S);
+  S.shutdown();
 }

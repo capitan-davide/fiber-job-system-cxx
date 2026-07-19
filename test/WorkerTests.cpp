@@ -67,7 +67,7 @@ TEST_CASE("Job run on worker threads", "[Worker]") {
   const FJS::U32 Count = std::min(4u, std::thread::hardware_concurrency());
   FJS::startWorkers(W, S, Count);
 
-  FJS::Counter *C = FJS::runJobs(S, Jobs);
+  FJS::Counter *C = S.runJobs(Jobs);
 
   // Main can't waitForCounter (worker-only) - deadline poll instead.
   const auto Deadline = std::chrono::steady_clock::now() + 5s;
@@ -98,8 +98,8 @@ struct MigrationTestCtx {
 JOB_ENTRY_POINT(parkAndCompare) {
   auto *Ctx = static_cast<MigrationTestCtx *>(Arg);
   const int Before = sched_getcpu();
-  FJS::waitForCounterAndFree(*Ctx->S,
-                             Ctx->Gate); // parks (unless it loses the race)
+  Ctx->S->waitForCounterAndFree(Ctx->Gate); // parks (unless it loses the race)
+
   const int After = sched_getcpu();
   if (Before != After)
     Ctx->Migrated->store(true, std::memory_order_relaxed);
@@ -134,10 +134,10 @@ TEST_CASE("A parked fiber can resume on a different worker", "[Worker]") {
     // The waiter goes through runJobs: its completion counter comes from the
     // Pool, whose storage survives the decrement tail.
     const FJS::JobDecl Waiter[] = {{.EntryFn = parkAndCompare, .Param = &Ctx}};
-    FJS::Counter *RoundDone = FJS::runJobs(S, Waiter);
+    FJS::Counter *RoundDone = S.runJobs(Waiter);
 
     const FJS::JobDecl Opener[] = {{.EntryFn = openGate, .Done = Gate}};
-    FJS::kickJobs(S, Opener);
+    S.kickJobs(Opener);
 
     // Retire the round fully before looping: RoundDone == 0 means the waiter
     // finished, and the waiter released Gate before returning - so both
@@ -196,8 +196,8 @@ JOB_ENTRY_POINT(stressNode) {
     Jobs[I] = {.EntryFn = stressNode, .Param = &Kids[I]};
   }
 
-  FJS::Counter *C = FJS::runJobs(*Ctx->S, std::span{Jobs.data(), B});
-  FJS::waitForCounterAndFree(*Ctx->S, C); // fan in
+  FJS::Counter *C = Ctx->S->runJobs(std::span{Jobs.data(), B});
+  Ctx->S->waitForCounterAndFree(C); // fan in
 }
 
 } // namespace
@@ -220,7 +220,7 @@ TEST_CASE("Stress: randomized fan-out/fan-in trees", "[Worker][Stress]") {
     StressTestCtx RootCtx{&S, &Leaves, /*Depth=*/3, Seed};
 
     const FJS::JobDecl Jobs[] = {{.EntryFn = stressNode, .Param = &RootCtx}};
-    FJS::Counter *RootDone = FJS::runJobs(S, Jobs);
+    FJS::Counter *RootDone = S.runJobs(Jobs);
 
     const auto Deadline = std::chrono::steady_clock::now() + 30s;
     while (RootDone->load() != 0) {
@@ -245,7 +245,7 @@ struct RaceTestCtx {
 JOB_ENTRY_POINT(tightWaiter) {
   auto *Ctx = static_cast<RaceTestCtx *>(Arg);
   // Sole owner of Gate: park (or fast-path) and return it to the pool.
-  FJS::waitForCounterAndFree(*Ctx->S, Ctx->Gate);
+  Ctx->S->waitForCounterAndFree(Ctx->Gate);
 }
 
 JOB_ENTRY_POINT(tightOpener) {} // its Done = Gate: finish opens the gate
@@ -276,11 +276,11 @@ TEST_CASE("Race stress: wait and last decrement collide", "[Worker][Stress]") {
     // around the fast-path check and the locked re-check.
     FJS::Counter *RoundDone;
     if (I % 2 == 0) {
-      RoundDone = FJS::runJobs(S, Waiter);
-      FJS::kickJobs(S, Opener);
+      RoundDone = S.runJobs(Waiter);
+      S.kickJobs(Opener);
     } else {
-      FJS::kickJobs(S, Opener);
-      RoundDone = FJS::runJobs(S, Waiter);
+      S.kickJobs(Opener);
+      RoundDone = S.runJobs(Waiter);
     }
 
     while (RoundDone->load() != 0) {

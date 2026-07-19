@@ -104,9 +104,42 @@ JobScheduler::JobScheduler(const JobSchedulerConfig &Config) {
   Pool.init(Config.FiberCount, fiberMain, this);
 }
 
-void shutdownScheduler(JobScheduler &S) { S.Pool.shutdown(); }
+void JobScheduler::kickJobs(std::span<const JobDecl> Jobs) {
+  for (const JobDecl &JD : Jobs) {
+    FJS_ASSERT(JD.EntryFn, "Starting a Job with no entry point");
+    Queue.push(JD);
+  }
+}
 
-void waitForCounter(JobScheduler &S, Counter &C, U32 Target) {
+void JobScheduler::drive() {
+  WorkerContext Ctx; // main volunteers as a worker for the duration
+  ThisWorker = &Ctx;
+
+  Fiber *F = Pool.acquire();
+  FJS_ASSERT(F, "Fiber pool exhausted");
+
+  Ctx.Current = F;
+  switchFiber(Ctx.Bootstrap, *Ctx.Current); // returns when fiberMain parks
+  FJS_ASSERT(Ctx.Current == F,
+             "The wrong fiber reached Bootstrap: some fiber is "
+             "stranded on a wait list");
+
+  Pool.release(F); // parked mid-loop, frame intact - safe to hand out again
+}
+
+Counter *JobScheduler::runJobs(std::span<const JobDecl> Jobs) {
+  Counter *C = Counters.acquire(static_cast<U32>(Jobs.size()));
+  FJS_ASSERT(C, "Counter pool exhausted");
+
+  for (JobDecl JD : Jobs) {
+    FJS_ASSERT(!JD.Done, "runJobs owns Done - don't set it");
+    FJS_ASSERT(JD.EntryFn, "Starting a Job with no entry point");
+    JD.Done = C;
+    Queue.push(JD);
+  }
+  return C;
+}
+void JobScheduler::waitForCounter(Counter &C, U32 Target) {
   FJS_ASSERT(ThisWorker, "Use of waitForCounter outside a worker thread");
 
   // load() may race with a concurrent decrement, and that's fine: if it reads
@@ -120,10 +153,10 @@ void waitForCounter(JobScheduler &S, Counter &C, U32 Target) {
 
   // Lives in this frame; the frame is frozen while we're parked, and
   // registerWaiter finishes long before we can be resumed and pop it.
-  RegisterWaiterArgs Args = {&S, &C, Target, Me};
+  RegisterWaiterArgs Args = {this, &C, Target, Me};
 
   // Hand control to a fresh scheduler loop, running fiberMain.
-  Fiber *Next = S.Pool.acquire();
+  Fiber *Next = Pool.acquire();
   FJS_ASSERT(Next, "Fiber pool exhausted");
   ThisWorker->Current = Next;
 
@@ -134,47 +167,13 @@ void waitForCounter(JobScheduler &S, Counter &C, U32 Target) {
   // Resumed: the counter hit target.
 }
 
-void kickJobs(JobScheduler &S, std::span<const JobDecl> Jobs) {
-  for (const JobDecl &JD : Jobs) {
-    FJS_ASSERT(JD.EntryFn, "Starting a Job with no entry point");
-    S.Queue.push(JD);
-  }
-}
-
-void drive(JobScheduler &S) {
-  WorkerContext Ctx; // main volunteers as a worker for the duration
-  ThisWorker = &Ctx;
-
-  Fiber *F = S.Pool.acquire();
-  FJS_ASSERT(F, "Fiber pool exhausted");
-
-  Ctx.Current = F;
-  switchFiber(Ctx.Bootstrap, *Ctx.Current); // returns when fiberMain parks
-  FJS_ASSERT(Ctx.Current == F,
-             "The wrong fiber reached Bootstrap: some fiber is "
-             "stranded on a wait list");
-
-  S.Pool.release(F); // parked mid-loop, frame intact - safe to hand out again
-}
-
-Counter *runJobs(JobScheduler &S, std::span<const JobDecl> Jobs) {
-  Counter *C = S.Counters.acquire(static_cast<U32>(Jobs.size()));
-  FJS_ASSERT(C, "Counter pool exhausted");
-
-  for (JobDecl JD : Jobs) {
-    FJS_ASSERT(!JD.Done, "runJobs owns Done - don't set it");
-    FJS_ASSERT(JD.EntryFn, "Starting a Job with no entry point");
-    JD.Done = C;
-    S.Queue.push(JD);
-  }
-  return C;
-}
-
-void waitForCounterAndFree(JobScheduler &S, Counter *C) {
-  waitForCounter(S, *C, 0);
+void JobScheduler::waitForCounterAndFree(Counter *C) {
+  waitForCounter(*C, 0);
   // Satisfied: every job in the batch as decremented and moved on, and
   // reset()'s assert will vouch that no waiter is still parked here.
-  S.Counters.release(C);
+  Counters.release(C);
 }
+
+void JobScheduler::shutdown() { Pool.shutdown(); }
 
 } // namespace FJS
