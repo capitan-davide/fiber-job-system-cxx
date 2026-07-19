@@ -16,7 +16,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        sanitize: [none, thread]
+        sanitize: [none, thread, address]
 
     name: build-and-test (sanitize=${{ matrix.sanitize }})
 

@@ -46,10 +46,31 @@ inline void runAfterSwitchCallback() {
     Pending.Fn(Pending.Arg);
 }
 
+/// Mandatory first statement of every fiber ENTRY function: completes the
+/// switch that started this fiber (a fresh fiber enters here instead of
+/// returning though switchFiber), then runs the resumer's callback.
+/// Note that a fresh fiber starts from a fabricated ContextFrame, if it were
+/// to return, it will go back to FJS_fiberTrampoline, and hit the `ud2`
+/// instruction.
+inline void fiberEntryProlog() {
+#ifdef FJS_ASAN
+  // Fresh stack: no prefious fake-stack state to restore.
+  __sanitizer_finish_switch_fiber(nullptr, nullptr, nullptr);
+#endif
+  runAfterSwitchCallback();
+}
+
 struct Fiber {
   void *SP = nullptr;    // parcked stack pointer - only meaningful while parked
   void *Stack = nullptr; // allocation base, kept for freeing
   U64 StackSize = 0;
+
+#ifdef FJS_ASAN
+  /// ASan's fake-stack state, stashed when this fiber switches away and
+  /// restored as the first act after it resumes. nullptr until first park.
+  void *ASanFakeStack = nullptr;
+#endif
+
 #ifdef FJS_TSAN
   /// TSan's shadow context for this stack. Set by createFiber; Bootstrap
   /// fibers (never created) adopt their thread's own context lazily on the
@@ -165,13 +186,32 @@ inline void destroyFiber(Fiber &F) {
 inline void *switchFiber(Fiber &From, Fiber &To, void *Arg = {},
                          AfterSwitchFn Callback = {}, void *CallbackArg = {}) {
   detail::PendingAfterSwitch = {Callback, CallbackArg};
+
 #ifdef FJS_TSAN
   if (!From.TSanFiber) // a Bootstrap leaving for the first time
     From.TSanFiber = __tsan_get_current_fiber();
   __tsan_switch_to_fiber(To.TSanFiber, 0); // the next thing this thread runs
                                            // is that stack!
 #endif
+
+#ifdef FJS_ASAN
+  if (!From.Stack) { // a Bootstrap leaving for the first time: adopt the
+                     // thread's own stack bounds so returns to it are exact
+    pthread_attr_t Attr;
+    pthread_getattr_np(pthread_self(), &Attr);
+    pthread_attr_getstack(&Attr, &From.Stack, &From.StackSize);
+    pthread_attr_destroy(&Attr);
+  }
+  __sanitizer_start_switch_fiber(&From.ASanFakeStack, To.Stack, To.StackSize);
+#endif
+
   void *Ret = DefaultBackend::switchFiber(From, To, Arg);
+
+#ifdef FJS_ASAN
+  // We are From again, resumed by someone: restore our stashed state.
+  __sanitizer_finish_switch_fiber(From.ASanFakeStack, nullptr, nullptr);
+#endif
+
   runAfterSwitchCallback(); // we were just resumed - run OUR resumer's callback
   return Ret;
 }

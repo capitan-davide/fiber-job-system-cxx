@@ -59,7 +59,7 @@ void releaseFiber(void *Arg) {
 }
 
 FIBER_ENTRY_POINT(fiberMain) {
-  runAfterSwitchCallback();
+  fiberEntryProlog();
 
   auto *S = static_cast<JobScheduler *>(Arg);
   std::array<Fiber *, Counter::MaxWaiters> Woken;

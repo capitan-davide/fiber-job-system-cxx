@@ -20,6 +20,10 @@ int Trace = 0;
 void *SeenArg = nullptr;
 
 template <typename Backend> FIBER_ENTRY_POINT(entry) {
+  // This test switches fibers with Backend::switchFiber directly, on purpose.
+  // Only FJS::switchFiber tells ASan "a switch is starting", and
+  // fiberEntryProlog tells it "that switch is done". Since nobody said
+  // "starting" here, calling fiberEntryProlog would abort - so don't.
   FJS::runAfterSwitchCallback();
 
   // Update SeenArg and Trace only if TestFiber.SP is the expected value. This
@@ -36,7 +40,12 @@ template <typename Backend> FIBER_ENTRY_POINT(entry) {
 }
 
 template <typename Backend> FIBER_ENTRY_POINT(increment) {
+  // This test switches fibers with Backend::switchFiber directly, on purpose.
+  // Only FJS::switchFiber tells ASan "a switch is starting", and
+  // fiberEntryProlog tells it "that switch is done". Since nobody said
+  // "starting" here, calling fiberEntryProlog would abort - so don't.
   FJS::runAfterSwitchCallback();
+
   auto *Cnt = reinterpret_cast<unsigned *>(Arg);
   while (true) {
     ++(*Cnt);
@@ -141,14 +150,14 @@ void markCallback(void *Arg) {
 }
 
 FIBER_ENTRY_POINT(freshEntry) {
-  FJS::runAfterSwitchCallback();
+  FJS::fiberEntryProlog();
   RanAtResumePoint = CallbackRan; // proves it fired before this line
   FJS::switchFiber(TestFiber, MainFiber);
   FJS_UNREACHABLE("Reached the end of the fiber entrypoint");
 }
 
 FIBER_ENTRY_POINT(parkedEntry) {
-  FJS::runAfterSwitchCallback();
+  FJS::fiberEntryProlog();
   FJS::switchFiber(TestFiber, MainFiber); // park; resumed WITH callback
   RanAtResumePoint = CallbackRan;         // resume poin: callback already ran
   FJS::switchFiber(TestFiber, MainFiber);
