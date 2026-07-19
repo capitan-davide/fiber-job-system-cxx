@@ -5,6 +5,7 @@
 #include "Fiber.h"
 #include "FiberPool.h"
 #include "JobQueue.h"
+#include "SpinLock.h"
 
 #include "FJS/Job.h"
 
@@ -19,19 +20,10 @@ struct JobScheduler {
   FiberPool Pool; // fibers that run fiberMain when idle
   CounterPool Counters; // issued by runJobs, reclaimed by waitForCountersAndFree
 
-  /// The thread's native stack, parked while fibers run. Never created via
-  /// `createFiber` - it becomes a fiber the first time something switches away
-  /// from it (same trick as MainFiber in the tests). fiberMain switches back
-  /// to it when the queue runs dry.
-  Fiber Bootstrap;
-
-  /// The fiber currently executing on this thread - whoever is running needs
-  /// it to name itself as `From` in a switch.
-  Fiber *Current = nullptr;
-
   /// Fibers whose wait is over, ready to be resumed. finerMain drains this
   /// BEFORE pulling new jobs (finish in-flight work before starting more).
   std::vector<Fiber *> Ready;
+  SpinLock ReadyLock;
 };
 
 /// TODO: Documentation

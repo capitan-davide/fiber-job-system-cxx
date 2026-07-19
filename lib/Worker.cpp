@@ -1,6 +1,9 @@
 #include "Worker.h"
+#include "Fiber.h"
+#include "JobScheduler.h"
 #include "Shutdown.h"
 #include "SpinLock.h"
+#include "WorkerContext.h"
 
 #include "FJS/Error.h"
 
@@ -11,16 +14,31 @@
 
 namespace {
 
-void workerMain() {
-  while (!FJS::isShutdownRequested())
-    FJS_PAUSE();
+void workerMain(FJS::JobScheduler *S) {
+  FJS::WorkerContext Ctx;
+  FJS::ThisWorker = &Ctx;
+
+  while (!FJS::isShutdownRequested()) {
+    FJS::Fiber *F = S->Pool.acquire();
+    FJS_ASSERT(F, "Fiber pool exhausted");
+
+    Ctx.Current = F;
+    FJS::switchFiber(Ctx.Bootstrap, *Ctx.Current); // returns when a fiber parks
+                                                   // back here
+    FJS_ASSERT(Ctx.Current, "Nothing parked back to Bootstrap?");
+    S->Pool.release(Ctx.Current); // whoever went dry on us - not necessarily F
+
+    FJS_PAUSE(); // don't hammer the queue re-entering instantly
+  }
+
+  FJS::ThisWorker = nullptr;
 }
 
 } // namespace
 
 namespace FJS {
 
-void startWorkers(WorkerPool &W, U32 Count) {
+void startWorkers(WorkerPool &W, JobScheduler &S, U32 Count) {
   FJS_ASSERT(
       areShutdownSignalsBlocked(),
       "Bad sigmask, startWorkers called without blocking shutdown signals");
@@ -31,8 +49,8 @@ void startWorkers(WorkerPool &W, U32 Count) {
              MaxWorkers);
 
   W.Threads.reserve(Count);
-  for (U32 I = 0; I < W.Threads.capacity(); ++I) {
-    std::thread &T = W.Threads.emplace_back(workerMain);
+  for (U32 I = 0; I < Count; ++I) {
+    std::thread &T = W.Threads.emplace_back(workerMain, &S);
 
     cpu_set_t Cpus;
     CPU_ZERO(&Cpus);

@@ -1,14 +1,18 @@
 #include "JobScheduler.h"
-
 #include "Counter.h"
 #include "Fiber.h"
+#include "SpinLock.h"
+#include "WorkerContext.h"
 
 #include "FJS/Error.h"
 #include "FJS/Job.h"
 
 #include <array>
+#include <mutex>
 
 namespace FJS {
+
+thread_local WorkerContext *ThisWorker = nullptr;
 
 namespace {
 
@@ -40,6 +44,20 @@ void releaseFiber(void *Arg) {
   R->S->Pool.release(R->F);
 }
 
+Fiber *popReady(JobScheduler &S) {
+  std::lock_guard G{S.ReadyLock};
+  if (S.Ready.empty())
+    return nullptr;
+  Fiber *F = S.Ready.back();
+  S.Ready.pop_back();
+  return F;
+}
+
+void pushReady(JobScheduler &S, Fiber *F) {
+  std::lock_guard G{S.ReadyLock};
+  S.Ready.push_back(F);
+}
+
 FIBER_ENTRY_POINT(fiberMain) {
   runAfterSwitchCallback();
 
@@ -49,17 +67,14 @@ FIBER_ENTRY_POINT(fiberMain) {
   while (true) {
     // Finish in-flight work before starting new one: a redy fiber holds a
     // half-done job - and a stack we can't recycle until it completes.
-    if (!S->Ready.empty()) {
-      Fiber *Me = S->Current;
-      Fiber *Next = S->Ready.back();
-      S->Ready.pop_back();
-      S->Current = Next;
+    if (Fiber *Next = popReady(*S)) {
+      Fiber *Me = ThisWorker->Current;
+      ThisWorker->Current = Next;
 
       // We're idle once Next runs, so we go back to the pool - but publishing
       // this fiber must wait until we're off its stack: after-switch callback.
       ReleaseFiberArgs Args = {S, Me};
       switchFiber(*Me, *Next, nullptr, releaseFiber, &Args);
-      continue; // resumed: someone re-acquired us and switched here.
     }
 
     JobDecl JD;
@@ -77,7 +92,7 @@ FIBER_ENTRY_POINT(fiberMain) {
     // no need to use a AfterSwitchFn here: Bootstrap is a well known
     // destination - control lands exactly in one place. What Bootstrap does is
     // to release() this fiber as soon as we land there.
-    switchFiber(*S->Current, S->Bootstrap);
+    switchFiber(*ThisWorker->Current, ThisWorker->Bootstrap);
   }
 }
 
@@ -88,6 +103,8 @@ void initScheduler(JobScheduler &S, U32 FiberCount) {
 }
 
 void waitForCounter(JobScheduler &S, Counter &C, U32 Target) {
+  FJS_ASSERT(ThisWorker, "Use of waitForCounter outside a worker thread");
+
   // load() may race with a concurrent decrement, and that's fine: if it reads
   // a stale "not satisfied", the slow path's `Counter::addWaiter` re-checks
   // under the lock and returns false; if it reads "satisfied" that's genuinely
@@ -95,7 +112,7 @@ void waitForCounter(JobScheduler &S, Counter &C, U32 Target) {
   if (C.load() == Target)
     return; // fast path - no switch, no lock.
 
-  Fiber *Me = S.Current;
+  Fiber *Me = ThisWorker->Current;
 
   // Lives in this frame; the frame is frozen while we're parked, and
   // registerWaiter finishes long before we can be resumed and pop it.
@@ -104,7 +121,7 @@ void waitForCounter(JobScheduler &S, Counter &C, U32 Target) {
   // Hand control to a fresh scheduler loop, running fiberMain.
   Fiber *Next = S.Pool.acquire();
   FJS_ASSERT(Next, "Fiber pool exhausted");
-  S.Current = Next;
+  ThisWorker->Current = Next;
 
   // addWaiter must run *after* the switch: we may not be discoverable on the
   // wait list while anything is still executing on our stack.
@@ -114,19 +131,24 @@ void waitForCounter(JobScheduler &S, Counter &C, U32 Target) {
 }
 
 void kickJobs(JobScheduler &S, std::span<const JobDecl> Jobs) {
-  for (const JobDecl &JD : Jobs)
+  for (const JobDecl &JD : Jobs) {
+    FJS_ASSERT(JD.EntryFn, "Starting a Job with no entry point");
     S.Queue.push(JD);
+  }
 }
 
 void drive(JobScheduler &S) {
+  WorkerContext Ctx; // main volunteers as a worker for the duration
+  ThisWorker = &Ctx;
+
   Fiber *F = S.Pool.acquire();
   FJS_ASSERT(F, "Fiber pool exhausted");
 
-  S.Current = F;
-  switchFiber(S.Bootstrap, *S.Current); // returns when fiberMain parks
-  FJS_ASSERT(S.Current == F, "The wrong fiber reached Bootstrap: some fiber is "
-                             "stranded on a wait list");
-  S.Current = nullptr; // nothing is running now
+  Ctx.Current = F;
+  switchFiber(Ctx.Bootstrap, *Ctx.Current); // returns when fiberMain parks
+  FJS_ASSERT(Ctx.Current == F,
+             "The wrong fiber reached Bootstrap: some fiber is "
+             "stranded on a wait list");
 
   S.Pool.release(F); // parked mid-loop, frame intact - safe to hand out again
 }
@@ -137,6 +159,7 @@ Counter *runJobs(JobScheduler &S, std::span<const JobDecl> Jobs) {
 
   for (JobDecl JD : Jobs) {
     FJS_ASSERT(!JD.Done, "runJobs owns Done - don't set it");
+    FJS_ASSERT(JD.EntryFn, "Starting a Job with no entry point");
     JD.Done = C;
     S.Queue.push(JD);
   }

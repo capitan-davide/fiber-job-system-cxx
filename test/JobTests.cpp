@@ -1,12 +1,15 @@
 #include "Counter.h"
+#include "DeathTest.h"
 #include "JobQueue.h"
 #include "JobScheduler.h"
+#include "WorkerContext.h"
 
 #include "FJS/Job.h"
 #include "FJS/Types.h"
 
 #include <algorithm>
 #include <array>
+#include <csignal>
 #include <span>
 
 #include <span>
@@ -92,13 +95,28 @@ TEST_CASE("waitForCounter returns immediately when already satisfied",
   FJS::JobScheduler S;
   FJS::initScheduler(S, /*FiberCount=*/2);
 
+  // Pose as a worker, but no current fiber: the fast path never needs one, and
+  // a slow path taken by mistake would abort on the nullptr - the test asserts
+  // "no switch happens" structurally, not by luck.
+  FJS::WorkerContext Ctx;
+  FJS::ThisWorker = &Ctx;
+
   FJS::Counter Done{0};
   FJS::waitForCounter(S, Done); // default Target = 0: the common case
 
   FJS::Counter Pending{3};
   FJS::waitForCounter(S, Pending, 3); // nonzero target, same fast path
 
+  FJS::ThisWorker = nullptr;
   SUCCEED("Fast path returned without switching");
+}
+
+TEST_CASE("waitForCounter aborts outside a worker thread", "[Job]") {
+  FJS::JobScheduler S;
+  FJS::initScheduler(S, /*FiberCount=*/2);
+  FJS::Counter C{0}; // satisfied - proves even the fast path is fenced
+
+  REQUIRE(diesWithSignal([&] { FJS::waitForCounter(S, C); }) == SIGABRT);
 }
 
 namespace {
