@@ -116,7 +116,7 @@ TEST_CASE("waitForCounter aborts outside a worker thread", "[Job]") {
   FJS::initScheduler(S, /*FiberCount=*/2);
   FJS::Counter C{0}; // satisfied - proves even the fast path is fenced
 
-  REQUIRE(diesWithSignal([&] { FJS::waitForCounter(S, C); }) == SIGABRT);
+  FJS_REQUIRE_DEATH(SIGABRT, [&] { FJS::waitForCounter(S, C); });
 }
 
 namespace {

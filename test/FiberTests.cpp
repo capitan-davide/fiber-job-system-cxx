@@ -103,11 +103,11 @@ TEMPLATE_TEST_CASE("Guard page traps stack overflow", "[Fiber]",
   Backend::createFiber(TestFiber, nullptr);
 
   auto *Guard = reinterpret_cast<volatile char *>(TestFiber.Stack);
-  REQUIRE(diesWithSignal([&] { *Guard = 1; }) == SIGSEGV);
+  FJS_REQUIRE_DEATH(SIGSEGV, [&] { *Guard = 1; });
 
   const long PageSize = ::sysconf(_SC_PAGESIZE);
   volatile char *FirstUsable = Guard + PageSize;
-  REQUIRE(diesWithSignal([&] { *FirstUsable = 1; }) == 0);
+  FJS_REQUIRE_DEATH(0, [&] { *FirstUsable = 1; });
 
   Backend::destroyFiber(TestFiber);
 }

@@ -16,6 +16,20 @@ thread_local WorkerContext *ThisWorker = nullptr;
 
 namespace {
 
+void pushReady(JobScheduler &S, Fiber *F) {
+  std::lock_guard G{S.ReadyLock};
+  S.Ready.push_back(F);
+}
+
+Fiber *popReady(JobScheduler &S) {
+  std::lock_guard G{S.ReadyLock};
+  if (S.Ready.empty())
+    return nullptr;
+  Fiber *F = S.Ready.back();
+  S.Ready.pop_back();
+  return F;
+}
+
 struct RegisterWaiterArgs {
   JobScheduler *S;
   Counter *C;
@@ -31,7 +45,7 @@ void registerWaiter(void *Arg) {
   // Lost the race: the counter hit Target between the fast-path load and
   // addWaiter's locked re-check. The waiter must not stay parked - queue it
   // for resumption.
-  R->S->Ready.push_back(R->Waiter);
+  pushReady(*R->S, R->Waiter);
 }
 
 struct ReleaseFiberArgs {
@@ -42,20 +56,6 @@ struct ReleaseFiberArgs {
 void releaseFiber(void *Arg) {
   auto *R = static_cast<ReleaseFiberArgs *>(Arg);
   R->S->Pool.release(R->F);
-}
-
-Fiber *popReady(JobScheduler &S) {
-  std::lock_guard G{S.ReadyLock};
-  if (S.Ready.empty())
-    return nullptr;
-  Fiber *F = S.Ready.back();
-  S.Ready.pop_back();
-  return F;
-}
-
-void pushReady(JobScheduler &S, Fiber *F) {
-  std::lock_guard G{S.ReadyLock};
-  S.Ready.push_back(F);
 }
 
 FIBER_ENTRY_POINT(fiberMain) {
@@ -75,6 +75,8 @@ FIBER_ENTRY_POINT(fiberMain) {
       // this fiber must wait until we're off its stack: after-switch callback.
       ReleaseFiberArgs Args = {S, Me};
       switchFiber(*Me, *Next, nullptr, releaseFiber, &Args);
+      continue; // resumed: re-start the loop to check for ready fibers before
+                // getting a new job
     }
 
     JobDecl JD;
@@ -83,7 +85,7 @@ FIBER_ENTRY_POINT(fiberMain) {
       if (JD.Done) {
         const U32 NumWoken = JD.Done->decrement(Woken);
         for (U32 I = 0; I < NumWoken; ++I)
-          S->Ready.push_back(Woken[I]);
+          pushReady(*S, Woken[I]);
       }
       continue;
     }

@@ -35,7 +35,7 @@ TEST_CASE("addWaiter aborts when the wait list is full", "[Counter]") {
   for (FJS::U32 I = 0; I < FJS::Counter::MaxWaiters; ++I)
     REQUIRE(C.addWaiter(FakeA, 0));
 
-  REQUIRE(diesWithSignal([&] { C.addWaiter(FakeB, 0); }) == SIGABRT);
+  FJS_REQUIRE_DEATH(SIGABRT, [&] { C.addWaiter(FakeB, 0); });
 }
 
 TEST_CASE("decrement wakes the waiter as its target and frees the slot",

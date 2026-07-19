@@ -27,12 +27,14 @@ public:
       // all the spinners share the line read-only; it only gets invalidated
       // on a real unlock. (relaxed is fine here for the inner peek - the
       // authoritative acquire happens in tryLock.)
-      while (Flag.test(std::memory_order_relaxed))
+      while (isLocked())
         FJS_PAUSE();
     }
   }
 
   void unlock() { Flag.clear(std::memory_order_release); }
+
+  bool isLocked() const { return Flag.test(std::memory_order_relaxed); }
 
 private:
   std::atomic_flag Flag;

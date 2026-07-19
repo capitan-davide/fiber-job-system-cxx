@@ -69,7 +69,7 @@ void requestShutdown() {
   ShutdownRequested.store(true, std::memory_order_release);
 }
 
-void detail::resetShutdownFlagForTesting() {
+void testing::resetShutdownFlagForTesting() {
   ShutdownRequested.store(false, std::memory_order_release);
 }
 

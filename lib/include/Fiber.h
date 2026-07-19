@@ -2,6 +2,7 @@
 #define FJS_FIBER_H
 
 #include "FiberSwitch.h"
+#include "Sanitizer.h"
 
 #include "FJS/Error.h"
 #include "FJS/Types.h"
@@ -49,6 +50,12 @@ struct Fiber {
   void *SP = nullptr;    // parcked stack pointer - only meaningful while parked
   void *Stack = nullptr; // allocation base, kept for freeing
   U64 StackSize = 0;
+#ifdef FJS_TSAN
+  /// TSan's shadow context for this stack. Set by createFiber; Bootstrap
+  /// fibers (never created) adopt their thread's own context lazily on the
+  /// first switch away.
+  void *TSanFiber = nullptr;
+#endif
 };
 
 struct AsmBackend {
@@ -100,7 +107,10 @@ using DefaultBackend = AsmBackend;
 ///                on `ud2` and aborts the process.
 /// \param Arg     Opaque word passed as `EntryFn`'s only argument.
 inline void createFiber(Fiber &F, void (*EntryFn)(void *), void *Arg = {}) {
-  return DefaultBackend::createFiber(F, EntryFn, Arg);
+  DefaultBackend::createFiber(F, EntryFn, Arg);
+#ifdef FJS_TSAN
+  F.TSanFiber = __tsan_create_fiber(0);
+#endif
 }
 
 /// Frees a fiber's stack.
@@ -111,7 +121,15 @@ inline void createFiber(Fiber &F, void (*EntryFn)(void *), void *Arg = {}) {
 ///
 /// \param F Fiber to destroy. Its fields are reset so a later `createFiber` may
 ///          reuse the object.
-inline void destroyFiber(Fiber &F) { return DefaultBackend::destroyFiber(F); }
+inline void destroyFiber(Fiber &F) {
+#ifdef FJS_TSAN
+  if (F.TSanFiber) {
+    __tsan_destroy_fiber(F.TSanFiber);
+    F.TSanFiber = nullptr;
+  }
+#endif
+  DefaultBackend::destroyFiber(F);
+}
 
 /// Parks the current fiber (\p From) and resumes \p To.
 ///
@@ -147,6 +165,12 @@ inline void destroyFiber(Fiber &F) { return DefaultBackend::destroyFiber(F); }
 inline void *switchFiber(Fiber &From, Fiber &To, void *Arg = {},
                          AfterSwitchFn Callback = {}, void *CallbackArg = {}) {
   detail::PendingAfterSwitch = {Callback, CallbackArg};
+#ifdef FJS_TSAN
+  if (!From.TSanFiber) // a Bootstrap leaving for the first time
+    From.TSanFiber = __tsan_get_current_fiber();
+  __tsan_switch_to_fiber(To.TSanFiber, 0); // the next thing this thread runs
+                                           // is that stack!
+#endif
   void *Ret = DefaultBackend::switchFiber(From, To, Arg);
   runAfterSwitchCallback(); // we were just resumed - run OUR resumer's callback
   return Ret;

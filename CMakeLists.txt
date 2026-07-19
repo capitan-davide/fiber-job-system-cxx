@@ -7,6 +7,18 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 option(FJS_BUILD_TESTS "Build the Catch2 test suite" ON)
 option(FJS_USE_UCONTEXT "Use ucontext fiber backend as default" OFF)
 
+# Comma-separated '-fsanitize' values ('address,undefined', 'thread', ...) or
+# 'none'. TSan cannot share a binary with ASan/LSan.
+set(FJS_ENABLE_SANITIZERS "none"
+  CACHE STRING
+  "Sanitizer(s) to enable (comma-separated), or 'none'"
+)
+
+if(NOT FJS_ENABLE_SANITIZERS STREQUAL "none")
+  add_compile_options(-fsanitize=${FJS_ENABLE_SANITIZERS} -fno-omit-frame-pointer)
+  add_link_options(-fsanitize=${FJS_ENABLE_SANITIZERS})
+endif()
+
 add_subdirectory(lib)
 
 include(CTest)

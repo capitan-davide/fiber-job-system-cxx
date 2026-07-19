@@ -25,10 +25,10 @@ void startSignalWaiter();
 /// sets.
 void requestShutdown();
 
-namespace detail {
+namespace testing {
 /// Test hook: clears the shutdown flag so a test starts from "running".
 void resetShutdownFlagForTesting();
-} // namespace detail
+} // namespace testing
 
 } // namespace FJS
 

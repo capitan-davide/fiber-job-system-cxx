@@ -26,6 +26,14 @@ struct Waiter {
 ///
 /// Non-copyable by construction (`std::atomic` member): a Counter is an
 /// identity that jobs hold pointers to, not a value.
+///
+/// LIFETIME: reading value 0 does NOT mean decrement() has finished - the
+/// decrementer is still inside the lock (waiter scan, unlock) after the value
+/// drops. The Counter's storage must outlive that critical section. Pool
+/// counters satisfy this by construction: their storage is permanent and any
+/// next-life access re-takes the same lock. A stack Counter may only be
+/// destroyed once its last decrementer has provably left - polling
+/// load() == 0 is not proof.
 class Counter {
 public:
   static constexpr U32 MaxWaiters = 4;
@@ -36,6 +44,13 @@ public:
   /// \param Value Number of decrements expected before completion - typically
   ///              the job count of the batch.
   explicit Counter(U32 Value) : Value{Value} {}
+
+  /// Tripwire for the lifetime rule: dying while a decrement still holds the
+  /// lock means the storage is being reused mid-decrement. Only fires when the
+  /// overlap actually happens - TSan is the real detector.
+  ~Counter() {
+    FJS_ASSERT(!Lock.isLocked(), "Counter destroyed mid-decrement");
+  }
 
   /// Records on completed job. When the new value satisfies waiters, they are
   /// removed from the wait list and returned in \p Woken.
