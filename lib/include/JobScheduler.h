@@ -15,7 +15,8 @@
 namespace FJS {
 
 struct JobSchedulerConfig {
-  U32 FiberCount = 16;
+  U32 SmallFiberCount = 16;
+  U32 LargeFiberCount = 4;
 };
 
 /// Scheduler state shared by every worker thread. Per-thread state (the

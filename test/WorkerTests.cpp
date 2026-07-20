@@ -23,7 +23,7 @@ TEST_CASE("Worker start pinned and join on shutdown", "[Worker]") {
   FJS::testing::resetShutdownFlagForTesting();
   FJS::blockShutdownSignals();
 
-  FJS::JobScheduler S({.FiberCount = 8});
+  FJS::JobScheduler S({.SmallFiberCount = 8});
 
   FJS::WorkerPool W;
 
@@ -54,7 +54,7 @@ TEST_CASE("Job run on worker threads", "[Worker]") {
   FJS::testing::resetShutdownFlagForTesting();
   FJS::blockShutdownSignals();
 
-  FJS::JobScheduler S({.FiberCount = 8});
+  FJS::JobScheduler S({.SmallFiberCount = 8});
 
   std::atomic<FJS::U32> Ran{0};
   std::array<FJS::JobDecl, 100> Jobs; // entry bumps an atomic counter
@@ -112,7 +112,7 @@ TEST_CASE("A parked fiber can resume on a different worker", "[Worker]") {
   FJS::testing::resetShutdownFlagForTesting();
   FJS::blockShutdownSignals();
 
-  FJS::JobScheduler S({.FiberCount = 8});
+  FJS::JobScheduler S({.SmallFiberCount = 8});
 
   FJS::WorkerPool W;
   const FJS::U32 Count = std::min(4u, std::thread::hardware_concurrency());
@@ -206,7 +206,7 @@ TEST_CASE("Stress: randomized fan-out/fan-in trees", "[Worker][Stress]") {
   FJS::testing::resetShutdownFlagForTesting();
   FJS::blockShutdownSignals();
 
-  FJS::JobScheduler S({.FiberCount = 32});
+  FJS::JobScheduler S({.SmallFiberCount = 32});
 
   FJS::WorkerPool W;
   FJS::startWorkers(W, S, std::min(4u, std::thread::hardware_concurrency()));
@@ -255,7 +255,7 @@ TEST_CASE("Race stress: wait and last decrement collide", "[Worker][Stress]") {
   FJS::testing::resetShutdownFlagForTesting();
   FJS::blockShutdownSignals();
 
-  FJS::JobScheduler S({.FiberCount = 8});
+  FJS::JobScheduler S({.SmallFiberCount = 8});
 
   FJS::WorkerPool W;
   FJS::startWorkers(W, S, std::min(4u, std::thread::hardware_concurrency()));

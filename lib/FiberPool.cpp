@@ -8,41 +8,59 @@
 
 namespace FJS {
 
-void FiberPool::init(U32 Count, void (*EntryFn)(void *), void *Arg) {
-  // No lock is needed, runs before the workers spawn.
-  Fibers.resize(Count);
-  Free.reserve(Count);
-  for (Fiber &F : Fibers) {
-    createFiber(F, EntryFn, Arg);
-    Free.push_back(&F);
-  }
+void FiberPool::init(const FiberPoolConfig &Config, void (*EntryFn)(void *),
+                     void *Arg) {
+  initTier(Small, Config.SmallFiberCount, FiberStackSize::Small, EntryFn, Arg);
+  initTier(Large, Config.LargeFiberCount, FiberStackSize::Large, EntryFn, Arg);
 }
 
 void FiberPool::shutdown() {
-  // Every fiber must be back in the pool: a missing one is still parked
-  // somewhere and would leak (or worse, resumed later). No lock is needed
-  // here, runs after the workers join.
-  FJS_ASSERT(Free.size() == Fibers.size(),
-             "Trying to free the pool while fibers are running");
-  for (Fiber &F : Fibers)
-    destroyFiber(F);
-  Fibers.clear();
-  Free.clear();
+  shutdownTier(Small);
+  shutdownTier(Large);
 }
 
-Fiber *FiberPool::acquire() {
-  std::lock_guard G{Lock};
+Fiber *FiberPool::acquire(FiberStackSize Size) {
+  Tier &T = tierFor(Size);
+  std::lock_guard G{T.Lock};
 
-  if (Free.empty())
+  if (T.Free.empty())
     return nullptr;
-  Fiber *F = Free.back();
-  Free.pop_back();
+  Fiber *F = T.Free.back();
+  T.Free.pop_back();
   return F;
 }
 
 void FiberPool::release(Fiber *F) {
-  std::lock_guard G{Lock};
-  Free.push_back(F);
+  Tier &T = tierFor(F->Tier);
+  std::lock_guard G{T.Lock};
+  T.Free.push_back(F);
+}
+
+void FiberPool::initTier(Tier &T, U32 Count, FiberStackSize Size,
+                         void (*EntryFn)(void *), void *Arg) {
+  // No lock is needed, runs before the workers spawn.
+  T.Fibers.resize(Count);
+  T.Free.reserve(Count);
+  for (Fiber &F : T.Fibers) {
+    createFiber(F, Size, EntryFn, Arg);
+    T.Free.push_back(&F);
+  }
+}
+
+void FiberPool::shutdownTier(Tier &T) {
+  // Every fiber must be back in the pool: a missing one is still parked
+  // somewhere and would leak (or worse, resumed later). No lock is needed
+  // here, runs after the workers join.
+  FJS_ASSERT(T.Free.size() == T.Fibers.size(),
+             "Trying to free the pool while fibers are running");
+  for (Fiber &F : T.Fibers)
+    destroyFiber(F);
+  T.Fibers.clear();
+  T.Free.clear();
+}
+
+FiberPool::Tier &FiberPool::tierFor(FiberStackSize Size) {
+  return Size == FiberStackSize::Small ? Small : Large;
 }
 
 } // namespace FJS

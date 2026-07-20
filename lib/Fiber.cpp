@@ -13,9 +13,13 @@
 
 namespace FJS {
 
-static constexpr U64 DefaultStackSize = 64 * 1024;
-
 namespace {
+
+constexpr U64 SmallStackSize = 64 * 1024;
+constexpr U64 LargeStackSize = 512 * 1024;
+constexpr U64 stackSizeBytes(FiberStackSize Size) {
+  return Size == FiberStackSize::Small ? SmallStackSize : LargeStackSize;
+}
 
 /// A parked fiber's saved context, exactly as `FJS_fiberSwitch` lays it out on
 /// the stack (see FiberSwitch.S).
@@ -43,11 +47,12 @@ FJS_fiberTrampoline(); // never call this - address-only symbol
 
 } // namespace
 
-void AsmBackend::createFiber(Fiber &F, void (*EntryFn)(void *), void *Arg) {
+void AsmBackend::createFiber(Fiber &F, FiberStackSize Size,
+                             void (*EntryFn)(void *), void *Arg) {
   const long PageSize = ::sysconf(_SC_PAGESIZE);
 
   // One guard page at the low end, usable stack above it.
-  F.StackSize = DefaultStackSize + PageSize;
+  F.StackSize = stackSizeBytes(Size) + PageSize;
   F.Stack = ::mmap(nullptr, F.StackSize, PROT_READ | PROT_WRITE,
                    MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   if (F.Stack == MAP_FAILED)
@@ -96,17 +101,18 @@ static_assert(offsetof(UcontextHeader, Ctx) == 0);
   // This is an unconditional abort because we don't have a `ud2` safeguard at
   // the end of trampoline like in FJS_fiberTrampoline.
   FJS_ABORT("Reached the end of the fiber entrypoint");
-  // FIXME: __builtin_trap() to emit the same `ud2` instruction as FJS_fiberTampoline
+  // FIXME: __builtin_trap() to emit the same `ud2` instruction as
+  // FJS_fiberTampoline
 }
 
 } // namespace
 
-void UcontextBackend::createFiber(Fiber &F, void (*EntryFn)(void *),
-                                  void *Arg) {
+void UcontextBackend::createFiber(Fiber &F, FiberStackSize Size,
+                                  void (*EntryFn)(void *), void *Arg) {
   const long PageSize = ::sysconf(_SC_PAGESIZE);
 
   // Same stack recipe as AsmBackend: guard page low, usable stack above.
-  F.StackSize = DefaultStackSize + PageSize;
+  F.StackSize = stackSizeBytes(Size) + PageSize;
   F.Stack = ::mmap(nullptr, F.StackSize, PROT_READ | PROT_WRITE,
                    MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   if (F.Stack == MAP_FAILED)

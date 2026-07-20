@@ -58,7 +58,7 @@ TEMPLATE_TEST_CASE("Fiber switching works", "[Fiber]", FJS::AsmBackend,
                    FJS::UcontextBackend) {
   using Backend = TestType;
 
-  Backend::createFiber(TestFiber, entry<Backend>,
+  Backend::createFiber(TestFiber, FJS::FiberStackSize::Small, entry<Backend>,
                        reinterpret_cast<void *>(0x1234));
 
   // `FJS::switchFiber` first invalidates TestFiber.SP (the frame is about to be
@@ -95,7 +95,8 @@ TEMPLATE_TEST_CASE("Fiber ping-pong works", "[Fiber]", FJS::AsmBackend,
   using Backend = TestType;
 
   unsigned Cnt = 0;
-  Backend::createFiber(TestFiber, increment<Backend>, &Cnt);
+  Backend::createFiber(TestFiber, FJS::FiberStackSize::Small,
+                       increment<Backend>, &Cnt);
 
   for (unsigned I = 1; I <= 5; ++I) {
     void *Ret = Backend::switchFiber(MainFiber, TestFiber);
@@ -109,7 +110,7 @@ TEMPLATE_TEST_CASE("Guard page traps stack overflow", "[Fiber]",
                    FJS::AsmBackend, FJS::UcontextBackend) {
   using Backend = TestType;
 
-  Backend::createFiber(TestFiber, nullptr);
+  Backend::createFiber(TestFiber, FJS::FiberStackSize::Small, nullptr);
 
   auto *Guard = reinterpret_cast<volatile char *>(TestFiber.Stack);
   FJS_REQUIRE_DEATH(SIGSEGV, [&] { *Guard = 1; });
@@ -123,16 +124,16 @@ TEMPLATE_TEST_CASE("Guard page traps stack overflow", "[Fiber]",
 
 TEST_CASE("FiberPool hands out and reclaims fibers", "[Fiber]") {
   FJS::FiberPool Pool;
-  Pool.init(2, [](void *) {}, nullptr);
+  Pool.init({.SmallFiberCount = 2}, [](void *) {}, nullptr);
 
-  FJS::Fiber *A = Pool.acquire();
-  FJS::Fiber *B = Pool.acquire();
+  FJS::Fiber *A = Pool.acquire(FJS::FiberStackSize::Small);
+  FJS::Fiber *B = Pool.acquire(FJS::FiberStackSize::Small);
   REQUIRE(A != nullptr);
   REQUIRE(B != nullptr);
-  REQUIRE(Pool.acquire() == nullptr); // exhausted
+  REQUIRE(Pool.acquire(FJS::FiberStackSize::Small) == nullptr); // exhausted
 
   Pool.release(B);
-  REQUIRE(Pool.acquire() == B);
+  REQUIRE(Pool.acquire(FJS::FiberStackSize::Small) == B);
 
   Pool.release(A);
   Pool.release(B);
@@ -170,7 +171,7 @@ TEST_CASE("After-switch callback fires on fresh-fiber entry", "[Fiber]") {
   RanAtResumePoint = -1;
   int Token;
 
-  FJS::createFiber(TestFiber, freshEntry);
+  FJS::createFiber(TestFiber, FJS::FiberStackSize::Small, freshEntry);
   FJS::switchFiber(MainFiber, TestFiber, nullptr, markCallback, &Token);
 
   REQUIRE(CallbackRan == 1);
@@ -186,7 +187,7 @@ TEST_CASE("After-switch callback fires when resuming a parked fiber",
   RanAtResumePoint = -1;
   int Token;
 
-  FJS::createFiber(TestFiber, parkedEntry);
+  FJS::createFiber(TestFiber, FJS::FiberStackSize::Small, parkedEntry);
   FJS::switchFiber(MainFiber, TestFiber); // no callback: entry runs, parsk
   REQUIRE(CallbackRan == 0);
 

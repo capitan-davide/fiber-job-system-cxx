@@ -19,7 +19,7 @@ void workerMain(FJS::JobScheduler *S) {
   FJS::ThisWorker = &Ctx;
 
   while (!FJS::isShutdownRequested()) {
-    FJS::Fiber *F = S->Pool.acquire();
+    FJS::Fiber *F = S->Pool.acquire(FJS::FiberStackSize::Small);
     FJS_ASSERT(F, "Fiber pool exhausted");
 
     Ctx.Current = F;

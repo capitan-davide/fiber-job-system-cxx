@@ -65,10 +65,13 @@ inline void fiberEntryProlog() {
   runAfterSwitchCallback();
 }
 
+enum class FiberStackSize { Small, Large };
+
 struct Fiber {
   void *SP = nullptr;    // parcked stack pointer - only meaningful while parked
   void *Stack = nullptr; // allocation base, kept for freeing
   U64 StackSize = 0;
+  FiberStackSize Tier = FiberStackSize::Small; // which FiberPool tier owns us
 
 #ifdef FJS_ASAN
   /// ASan's fake-stack state, stashed when this fiber switches away and
@@ -85,7 +88,8 @@ struct Fiber {
 };
 
 struct AsmBackend {
-  static void createFiber(Fiber &F, void (*EntryFn)(void *), void *Arg = {});
+  static void createFiber(Fiber &F, FiberStackSize Size,
+                          void (*EntryFn)(void *), void *Arg = {});
   static void destroyFiber(Fiber &F);
   static void *switchFiber(Fiber &From, Fiber &To, void *Arg = {});
 };
@@ -103,7 +107,8 @@ inline void *AsmBackend::switchFiber(Fiber &From, Fiber &To, void *Arg) {
 }
 
 struct UcontextBackend {
-  static void createFiber(Fiber &F, void (*EntryFn)(void *), void *Arg = {});
+  static void createFiber(Fiber &F, FiberStackSize Size,
+                          void (*EntryFn)(void *), void *Arg = {});
   static void destroyFiber(Fiber &F);
   static void *switchFiber(Fiber &From, Fiber &To, void *Arg = {});
 };
@@ -132,8 +137,10 @@ using DefaultBackend = AsmBackend;
 ///                return: it must switch away (park) instead. Returning lands
 ///                on `ud2` and aborts the process.
 /// \param Arg     Opaque word passed as `EntryFn`'s only argument.
-inline void createFiber(Fiber &F, void (*EntryFn)(void *), void *Arg = {}) {
-  DefaultBackend::createFiber(F, EntryFn, Arg);
+inline void createFiber(Fiber &F, FiberStackSize Size, void (*EntryFn)(void *),
+                        void *Arg = {}) {
+  DefaultBackend::createFiber(F, Size, EntryFn, Arg);
+  F.Tier = Size;
 #ifdef FJS_TSAN
   F.TSanFiber = __tsan_create_fiber(0);
 #endif

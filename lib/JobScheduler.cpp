@@ -87,7 +87,9 @@ FIBER_ENTRY_POINT(fiberMain) {
 } // namespace
 
 JobScheduler::JobScheduler(const JobSchedulerConfig &Config) {
-  Pool.init(Config.FiberCount, fiberMain, this);
+  Pool.init({.SmallFiberCount = Config.SmallFiberCount,
+             .LargeFiberCount = Config.LargeFiberCount},
+            fiberMain, this);
 }
 
 void JobScheduler::kickJobs(std::span<const JobDecl> Jobs) {
@@ -101,7 +103,7 @@ void JobScheduler::drive() {
   WorkerContext Ctx; // main volunteers as a worker for the duration
   ThisWorker = &Ctx;
 
-  Fiber *F = Pool.acquire();
+  Fiber *F = Pool.acquire(FiberStackSize::Small);
   FJS_ASSERT(F, "Fiber pool exhausted");
 
   Ctx.Current = F;
@@ -142,7 +144,7 @@ void JobScheduler::waitForCounter(Counter &C, U32 Target) {
   RegisterWaiterArgs Args = {this, &C, Target, Me};
 
   // Hand control to a fresh scheduler loop, running fiberMain.
-  Fiber *Next = Pool.acquire();
+  Fiber *Next = Pool.acquire(FiberStackSize::Small);
   FJS_ASSERT(Next, "Fiber pool exhausted");
   ThisWorker->Current = Next;
 
