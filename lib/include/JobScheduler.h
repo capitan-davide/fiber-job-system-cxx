@@ -53,6 +53,20 @@ public:
   ///      holds it. Two fibers calling this on one counter is a double-free.
   void waitForCounterAndFree(Counter *C);
 
+  /// Marks \p F as ready to resume: finerMain's loop drains this list before
+  /// pulling new jobs. Called when a wait's target is already met by the time
+  /// it tries to park (lost the race in registerWaiter), and when
+  /// Counter::decrement wakes waiters.
+  ///
+  /// \pre \p F is parked, not currently in the ready list, the free pool or
+  ///      any Counter's wait list.
+  void pushReady(Fiber *F);
+
+  /// Pops a fiber pushed by pushReady - one whose wait is over and ready to
+  /// resume. Returns nullptr if the Ready list is empty: not an error,
+  /// fiberMain falls through to pulling a new job instead.
+  Fiber *popReady();
+
   /// Tears the scheduler down and audits for leaks: every fiber back in the
   /// pool, every counter returned. Call after the last worker has been joined
   /// (with workers alive this is a data race, and the audit would lie).
@@ -64,6 +78,7 @@ public:                 // TODO: This has to become private at some point
   CounterPool Counters; // issued by runJobs, reclaimed by
                         // waitForCountersAndFree
 
+private:
   /// Fibers whose wait is over, ready to be resumed. fiberMain drains this
   /// BEFORE pulling new jobs (finish in-flight work before starting more).
   std::vector<Fiber *> Ready;

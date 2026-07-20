@@ -16,20 +16,6 @@ thread_local WorkerContext *ThisWorker = nullptr;
 
 namespace {
 
-void pushReady(JobScheduler &S, Fiber *F) {
-  std::lock_guard G{S.ReadyLock};
-  S.Ready.push_back(F);
-}
-
-Fiber *popReady(JobScheduler &S) {
-  std::lock_guard G{S.ReadyLock};
-  if (S.Ready.empty())
-    return nullptr;
-  Fiber *F = S.Ready.back();
-  S.Ready.pop_back();
-  return F;
-}
-
 struct RegisterWaiterArgs {
   JobScheduler *S;
   Counter *C;
@@ -45,7 +31,7 @@ void registerWaiter(void *Arg) {
   // Lost the race: the counter hit Target between the fast-path load and
   // addWaiter's locked re-check. The waiter must not stay parked - queue it
   // for resumption.
-  pushReady(*R->S, R->Waiter);
+  R->S->pushReady(R->Waiter);
 }
 
 struct ReleaseFiberArgs {
@@ -67,7 +53,7 @@ FIBER_ENTRY_POINT(fiberMain) {
   while (true) {
     // Finish in-flight work before starting new one: a redy fiber holds a
     // half-done job - and a stack we can't recycle until it completes.
-    if (Fiber *Next = popReady(*S)) {
+    if (Fiber *Next = S->popReady()) {
       Fiber *Me = ThisWorker->Current;
       ThisWorker->Current = Next;
 
@@ -85,7 +71,7 @@ FIBER_ENTRY_POINT(fiberMain) {
       if (JD.Done) {
         const U32 NumWoken = JD.Done->decrement(Woken);
         for (U32 I = 0; I < NumWoken; ++I)
-          pushReady(*S, Woken[I]);
+          S->pushReady(Woken[I]);
       }
       continue;
     }
@@ -175,5 +161,20 @@ void JobScheduler::waitForCounterAndFree(Counter *C) {
 }
 
 void JobScheduler::shutdown() { Pool.shutdown(); }
+
+void JobScheduler::pushReady(Fiber *F) {
+  FJS_ASSERT(F->SP, "Pushing a non-parked fiber to the ready list");
+  std::lock_guard G{ReadyLock};
+  Ready.push_back(F);
+}
+
+Fiber *JobScheduler::popReady() {
+  std::lock_guard G{ReadyLock};
+  if (Ready.empty())
+    return nullptr;
+  Fiber *F = Ready.back();
+  Ready.pop_back();
+  return F;
+}
 
 } // namespace FJS
