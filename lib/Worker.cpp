@@ -12,18 +12,20 @@
 #include <pthread.h>
 #include <sched.h>
 
+namespace FJS {
+
 namespace {
 
 void workerMain(FJS::JobScheduler *S) {
-  FJS::WorkerContext Ctx;
-  FJS::ThisWorker = &Ctx;
+  WorkerContext Ctx;
+  ThisWorker = &Ctx;
 
-  while (!FJS::isShutdownRequested()) {
-    FJS::Fiber *F = S->Pool.acquire(FJS::FiberStackSize::Small);
+  while (!isShutdownRequested()) {
+    Fiber *F = S->Pool.acquire(FJS::FiberStackSize::Small);
     FJS_ASSERT(F, "Fiber pool exhausted");
 
     Ctx.Current = F;
-    FJS::switchFiber(Ctx.Bootstrap, *Ctx.Current); // returns when a fiber parks
+    switchFiber(Ctx.Bootstrap, *Ctx.Current); // returns when a fiber parks
                                                    // back here
     FJS_ASSERT(Ctx.Current, "Nothing parked back to Bootstrap?");
     S->Pool.release(Ctx.Current); // whoever went dry on us - not necessarily F
@@ -31,12 +33,10 @@ void workerMain(FJS::JobScheduler *S) {
     FJS_PAUSE(); // don't hammer the queue re-entering instantly
   }
 
-  FJS::ThisWorker = nullptr;
+  ThisWorker = nullptr;
 }
 
 } // namespace
-
-namespace FJS {
 
 void startWorkers(WorkerPool &W, JobScheduler &S, U32 Count) {
   FJS_ASSERT(
