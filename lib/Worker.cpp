@@ -18,10 +18,10 @@ namespace {
 
 void workerMain(FJS::JobScheduler *S) {
   WorkerContext Ctx;
-  ThisWorker = &Ctx;
+  setThisWorkerContext(&Ctx);
 
   while (!isShutdownRequested()) {
-    Fiber *F = S->Pool.acquire(FJS::FiberStackSize::Small);
+    Fiber *F = S->Pool.acquire(FiberStackSize::Small);
     FJS_ASSERT(F, "Fiber pool exhausted");
 
     Ctx.Current = F;
@@ -33,7 +33,7 @@ void workerMain(FJS::JobScheduler *S) {
     FJS_PAUSE(); // don't hammer the queue re-entering instantly
   }
 
-  ThisWorker = nullptr;
+  setThisWorkerContext(nullptr);
 }
 
 } // namespace

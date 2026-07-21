@@ -31,6 +31,7 @@ target_link_libraries(
     Tracy::TracyClient
   PRIVATE
     FJS::PendingAfterSwitch
+    FJS::WorkerContext
 )
 
 # CET must stay off: the hand-rolled fiber switch rets to addresses no shadow
@@ -62,6 +63,9 @@ add_library(FJS::PendingAfterSwitch ALIAS PendingAfterSwitch)
 
 target_include_directories(
   PendingAfterSwitch 
+  PUBLIC
+    $<INSTALL_INTERFACE:include>
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
   PRIVATE
     ${CMAKE_SOURCE_DIR}/lib/include
 )
@@ -76,3 +80,27 @@ set_target_properties(PendingAfterSwitch
     INTERPROCEDURAL_OPTIMIZATION_RELWITHDEBINFO OFF
 )
 
+add_library(WorkerContext OBJECT
+  WorkerContext.cpp
+)
+
+add_library(FJS::WorkerContext ALIAS WorkerContext)
+
+target_include_directories(
+  WorkerContext
+  PUBLIC
+    $<INSTALL_INTERFACE:include>
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+  PRIVATE
+    ${CMAKE_SOURCE_DIR}/lib/include
+)
+
+target_compile_options(WorkerContext PRIVATE -fno-lto)
+
+set_target_properties(WorkerContext
+  PROPERTIES
+    INTERPROCEDURAL_OPTIMIZATION OFF
+    INTERPROCEDURAL_OPTIMIZATION_DEBUG OFF
+    INTERPROCEDURAL_OPTIMIZATION_RELEASE OFF
+    INTERPROCEDURAL_OPTIMIZATION_RELWITHDEBINFO OFF
+)

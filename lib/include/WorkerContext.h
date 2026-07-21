@@ -2,6 +2,7 @@
 #define FJS_WORKER_CONTEXT_H
 
 #include "Fiber.h"
+#include "TLS.h"
 
 namespace FJS {
 
@@ -18,9 +19,12 @@ struct WorkerContext {
   Fiber *Current = nullptr;
 };
 
-/// This thread's context. Set at worker entry (and inside `drive`); nullptr on
-/// any thread that isn't currently a worker.
-extern thread_local WorkerContext *ThisWorker;
+/// Returns this thread's context. Set at worker entry (and inside `drive`);
+/// nullptr on any thread that isn't currently a worker.
+FJS_OPAQUE WorkerContext *getThisWorkerContext() noexcept;
+
+/// Set the context for this thread. Set at worker entry (inside workerMain).
+FJS_OPAQUE void setThisWorkerContext(WorkerContext *Ctx) noexcept;
 
 } // namespace FJS
 

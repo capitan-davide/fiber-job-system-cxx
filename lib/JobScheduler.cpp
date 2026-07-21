@@ -12,8 +12,6 @@
 
 namespace FJS {
 
-thread_local WorkerContext *ThisWorker = nullptr;
-
 namespace {
 
 struct RegisterWaiterArgs {
@@ -51,6 +49,14 @@ FIBER_ENTRY_POINT(fiberMain) {
   std::array<Fiber *, Counter::MaxWaiters> Woken;
 
   while (true) {
+    // This OS thread's context. Read fresh each iteration: any park may resume
+    // us on a different thread, where the old pointer would name another
+    // thread's context. Every switchFiber below is followed by `continue`, so
+    // stale values die with the iteration. CAREFUL: JD.EntryFn can also park us
+    // (a Job calling waitForCounter) and is NOT followed by a re-read - nothing
+    // after JD.EntryFn in this loop may use ThisWorker.
+    WorkerContext *ThisWorker = getThisWorkerContext();
+
     // Finish in-flight work before starting new one: a redy fiber holds a
     // half-done job - and a stack we can't recycle until it completes.
     if (Fiber *Next = S->popReady()) {
@@ -101,7 +107,7 @@ void JobScheduler::kickJobs(std::span<const JobDecl> Jobs) {
 
 void JobScheduler::drive() {
   WorkerContext Ctx; // main volunteers as a worker for the duration
-  ThisWorker = &Ctx;
+  setThisWorkerContext(&Ctx);
 
   Fiber *F = Pool.acquire(FiberStackSize::Small);
   FJS_ASSERT(F, "Fiber pool exhausted");
@@ -127,7 +133,9 @@ Counter *JobScheduler::runJobs(std::span<const JobDecl> Jobs) {
   }
   return C;
 }
+
 void JobScheduler::waitForCounter(Counter &C, U32 Target) {
+  WorkerContext *ThisWorker = getThisWorkerContext();
   FJS_ASSERT(ThisWorker, "Use of waitForCounter outside a worker thread");
 
   // load() may race with a concurrent decrement, and that's fine: if it reads

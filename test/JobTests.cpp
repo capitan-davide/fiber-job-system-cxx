@@ -97,7 +97,7 @@ TEST_CASE("waitForCounter returns immediately when already satisfied",
   // a slow path taken by mistake would abort on the nullptr - the test asserts
   // "no switch happens" structurally, not by luck.
   FJS::WorkerContext Ctx;
-  FJS::ThisWorker = &Ctx;
+  FJS::setThisWorkerContext(&Ctx);
 
   FJS::Counter Done{0};
   S.waitForCounter(Done); // default Target = 0: the common case
@@ -105,7 +105,7 @@ TEST_CASE("waitForCounter returns immediately when already satisfied",
   FJS::Counter Pending{3};
   S.waitForCounter(Pending, 3); // nonzero target, same fast path
 
-  FJS::ThisWorker = nullptr;
+  FJS::setThisWorkerContext(nullptr);
   SUCCEED("Fast path returned without switching");
 }
 
