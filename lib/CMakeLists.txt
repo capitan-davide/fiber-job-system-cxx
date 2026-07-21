@@ -30,7 +30,7 @@ target_link_libraries(
   PUBLIC
     Tracy::TracyClient
   PRIVATE
-    PendingAfterSwitch
+    FJS::PendingAfterSwitch
 )
 
 # CET must stay off: the hand-rolled fiber switch rets to addresses no shadow
@@ -57,6 +57,8 @@ endif()
 add_library(PendingAfterSwitch OBJECT
   PendingAfterSwitch.cpp
 )
+
+add_library(FJS::PendingAfterSwitch ALIAS PendingAfterSwitch)
 
 target_include_directories(
   PendingAfterSwitch 

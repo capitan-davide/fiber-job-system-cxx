@@ -16,9 +16,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        build_type: [Debug, RelWithDebInfo]
         sanitize: [none, thread, address]
+        exclude:
+          - build_type: RelWithDebInfo
+            sanitize: none
 
-    name: build-and-test (sanitize=${{ matrix.sanitize }})
+    name: build-and-test (${{ matrix.build_type }}, sanitize=${{ matrix.sanitize }})
 
     steps:
       - name: Install dependencies
@@ -29,7 +33,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Configure
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DFJS_ENABLE_SANITIZERS=${{ matrix.sanitize }}
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DFJS_ENABLE_SANITIZERS=${{ matrix.sanitize }}
 
       - name: Build
         run: cmake --build build -j"$(nproc)"
