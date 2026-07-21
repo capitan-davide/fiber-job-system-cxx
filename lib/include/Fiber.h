@@ -2,6 +2,7 @@
 #define FJS_FIBER_H
 
 #include "FiberSwitch.h"
+#include "PendingAfterSwitch.h"
 #include "Sanitizer.h"
 
 #include "FJS/Error.h"
@@ -28,25 +29,12 @@
 
 namespace FJS {
 
-using AfterSwitchFn = void (*)(void *);
-
-namespace detail {
-struct AfterSwitch {
-  AfterSwitchFn Fn = nullptr;
-  void *Arg = nullptr;
-};
-
-// One slot per thread: written by the fiber switching away, consumed by the
-// fiber being resumed - always the next thing this thread runs.
-inline thread_local AfterSwitch PendingAfterSwitch;
-} // namespace detail
-
 /// Runs the callback the previous fiber attached to the switch that resumed
 /// us, if any. Called automatically when resuming inside `switchFiber`; a
 /// fiber ENTRY FUNCTION must call it as its first statement (fresh fibers
 /// resume at their entry, bypassing the `switchFiber` return path).
 inline void runAfterSwitchCallback() {
-  detail::AfterSwitch Pending = std::exchange(detail::PendingAfterSwitch, {});
+  AfterSwitch Pending = takePendingAfterSwitch();
   if (Pending.Fn)
     Pending.Fn(Pending.Arg);
 }
@@ -197,7 +185,7 @@ inline void destroyFiber(Fiber &F) {
 /// \return The \p Arg passed by whichever fiber eventually resumes us.
 inline void *switchFiber(Fiber &From, Fiber &To, void *Arg = {},
                          AfterSwitchFn Callback = {}, void *CallbackArg = {}) {
-  detail::PendingAfterSwitch = {Callback, CallbackArg};
+  setPendingAfterSwitch({Callback, CallbackArg});
 
 #ifdef FJS_TSAN
   if (!From.TSanFiber) // a Bootstrap leaving for the first time

@@ -29,6 +29,8 @@ target_link_libraries(
   LibFJS
   PUBLIC
     Tracy::TracyClient
+  PRIVATE
+    PendingAfterSwitch
 )
 
 # CET must stay off: the hand-rolled fiber switch rets to addresses no shadow
@@ -49,3 +51,26 @@ target_compile_options(LibFJS
 if(FJS_USE_UCONTEXT)
   target_compile_definitions(LibFJS PRIVATE FJS_USE_UCONTEXT)
 endif()
+
+# Isolate the opaque accessor to TLS in their own target. To forcefully disable
+# IPO/LTO on THIS target.
+add_library(PendingAfterSwitch OBJECT
+  PendingAfterSwitch.cpp
+)
+
+target_include_directories(
+  PendingAfterSwitch 
+  PRIVATE
+    ${CMAKE_SOURCE_DIR}/lib/include
+)
+
+target_compile_options(PendingAfterSwitch PRIVATE -fno-lto)
+
+set_target_properties(PendingAfterSwitch
+  PROPERTIES
+    INTERPROCEDURAL_OPTIMIZATION OFF
+    INTERPROCEDURAL_OPTIMIZATION_DEBUG OFF
+    INTERPROCEDURAL_OPTIMIZATION_RELEASE OFF
+    INTERPROCEDURAL_OPTIMIZATION_RELWITHDEBINFO OFF
+)
+

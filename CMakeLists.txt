@@ -18,6 +18,7 @@ set(FJS_ENABLE_SANITIZERS "none"
 if(FJS_ENABLE_TRACY)
   option(TRACY_ENABLE "" ON)
   option(TRACY_FIBERS "" ON)
+
   # Enable the native architecture of this CPU to leverage expanded instruction
   # sets. Ties the binary to the machine where it was compiled.
   add_compile_options(-march=native)
