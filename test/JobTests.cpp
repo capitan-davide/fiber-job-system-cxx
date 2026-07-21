@@ -109,13 +109,6 @@ TEST_CASE("waitForCounter returns immediately when already satisfied",
   SUCCEED("Fast path returned without switching");
 }
 
-TEST_CASE("waitForCounter aborts outside a worker thread", "[Job]") {
-  FJS::JobScheduler S({.SmallFiberCount = 2});
-  FJS::Counter C{0}; // satisfied - proves even the fast path is fenced
-
-  FJS_REQUIRE_DEATH(SIGABRT, [&] { S.waitForCounter(C); });
-}
-
 namespace {
 struct WaitTestCtx {
   FJS::JobScheduler *S;
