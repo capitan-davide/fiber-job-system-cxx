@@ -17,23 +17,26 @@ jobs:
       fail-fast: false
       matrix:
         build_type: [Debug, RelWithDebInfo]
-        sanitize: [none, thread, address]
-        exclude:
-          - build_type: RelWithDebInfo
-            sanitize: none
+        compiler: [gcc, clang]
+        sanitizer: [none, thread, address]
 
-    name: build-and-test (${{ matrix.build_type }}, sanitize=${{ matrix.sanitize }})
+    name: build-and-test (${{ matrix.build_type }}, compiler=${{ matrix.compiler }}, sanitizer=${{ matrix.sanitizer }})
 
     steps:
       - name: Install dependencies
         run: |
           pacman -Syu --noconfirm
-          pacman -S --noconfirm --needed base-devel cmake git catch2
+          pacman -S --noconfirm --needed base-devel cmake git catch2 clang
 
       - uses: actions/checkout@v4
 
       - name: Configure
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DFJS_ENABLE_SANITIZERS=${{ matrix.sanitize }}
+        run: >
+          cmake -S . -B build
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+          -DCMAKE_C_COMPILER=${{ matrix.compiler == 'clang' && 'clang' || 'gcc' }}
+          -DCMAKE_CXX_COMPILER=${{ matrix.compiler == 'clang' && 'clang++' || 'g++' }}
+          -DFJS_ENABLE_SANITIZERS=${{ matrix.sanitizer }}
 
       - name: Build
         run: cmake --build build -j"$(nproc)"
