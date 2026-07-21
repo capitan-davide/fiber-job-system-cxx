@@ -25,6 +25,12 @@ target_include_directories(
     ${CMAKE_SOURCE_DIR}/lib/include
 )
 
+target_link_libraries(
+  LibFJS
+  PUBLIC
+    Tracy::TracyClient
+)
+
 # CET must stay off: the hand-rolled fiber switch rets to addresses no shadow
 # stack has seen. `-fcf-protection=none` omits the SHSTK-compatible marking, so
 # the loaded keeps enforcement disabled for the whole process even on systems
