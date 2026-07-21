@@ -3,7 +3,6 @@
 #include "FJS/Error.h"
 
 #include <atomic>
-#include <bits/types/sigset_t.h>
 #include <csignal>
 #include <cstring>
 #include <format>
