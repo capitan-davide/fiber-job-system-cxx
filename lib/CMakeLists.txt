@@ -95,6 +95,12 @@ target_include_directories(
     ${CMAKE_SOURCE_DIR}/lib/include
 )
 
+target_link_libraries(
+  WorkerContext
+  PUBLIC
+    Tracy::TracyClient
+)
+
 target_compile_options(WorkerContext PRIVATE -fno-lto)
 
 set_target_properties(WorkerContext

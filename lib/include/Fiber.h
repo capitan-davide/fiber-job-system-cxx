@@ -4,10 +4,13 @@
 #include "FiberSwitch.h"
 #include "PendingAfterSwitch.h"
 #include "Sanitizer.h"
+#include "Tracy.h"
 
 #include "FJS/Error.h"
 #include "FJS/Types.h"
 
+#include <atomic>
+#include <cstdio>
 #include <utility>
 
 /// Declares a fiber entry function with the required signature:
@@ -61,19 +64,31 @@ struct Fiber {
   U64 StackSize = 0;
   FiberStackSize Tier = FiberStackSize::Small; // which FiberPool tier owns us
 
-#ifdef FJS_ASAN
-  /// ASan's fake-stack state, stashed when this fiber switches away and
-  /// restored as the first act after it resumes. nullptr until first park.
-  void *ASanFakeStack = nullptr;
-#endif
-
 #ifdef FJS_TSAN
   /// TSan's shadow context for this stack. Set by createFiber; Bootstrap
   /// fibers (never created) adopt their thread's own context lazily on the
   /// first switch away.
   void *TSanFiber = nullptr;
 #endif
+
+#ifdef FJS_ASAN
+  /// ASan's fake-stack state, stashed when this fiber switches away and
+  /// restored as the first act after it resumes. nullptr until first park.
+  void *ASanFakeStack = nullptr;
+#endif
+
+#ifdef TRACY_ENABLE
+  /// Tracy identifies a fiber by this string: unique per fiber, must outlive
+  /// the run (Tracy keeps the pointer). Stamped by createFiber; the default
+  /// covers Bootstrap fibers, which are never created.
+  const char *TracyName = "fjs-bootstrap";
+#endif
 };
+
+#ifdef TRACY_ENABLE
+inline const char *makeTracyFiberName(FiberStackSize Size);
+inline const char *makeTracyBootName(U32 Index);
+#endif // TRACY_ENABLE
 
 struct AsmBackend {
   static void createFiber(Fiber &F, FiberStackSize Size,
@@ -131,6 +146,9 @@ inline void createFiber(Fiber &F, FiberStackSize Size, void (*EntryFn)(void *),
   F.Tier = Size;
 #ifdef FJS_TSAN
   F.TSanFiber = __tsan_create_fiber(0);
+#endif
+#ifdef TRACY_ENABLE
+  F.TracyName = makeTracyFiberName(Size);
 #endif
 }
 
@@ -205,6 +223,8 @@ inline void *switchFiber(Fiber &From, Fiber &To, void *Arg = {},
   __sanitizer_start_switch_fiber(&From.ASanFakeStack, To.Stack, To.StackSize);
 #endif
 
+  TracyFiberEnter(To.TracyName);
+
   void *Ret = DefaultBackend::switchFiber(From, To, Arg);
 
 #ifdef FJS_ASAN
@@ -215,6 +235,26 @@ inline void *switchFiber(Fiber &From, Fiber &To, void *Arg = {},
   runAfterSwitchCallback(); // we were just resumed - run OUR resumer's callback
   return Ret;
 }
+
+#ifdef TRACY_ENABLE
+
+inline const char *makeTracyFiberName(FiberStackSize Size) {
+  static char Names[1024][16];
+  static std::atomic<U32> Cnt = 0;
+  const U32 I = Cnt.fetch_add(1, std::memory_order_relaxed) % 1024;
+  std::snprintf(Names[I], sizeof(Names[I]), "fjs-%c%u",
+                Size == FiberStackSize::Small ? 's' : 'l', I);
+  return Names[I];
+}
+
+inline const char *makeTracyBootName(U32 Index) {
+  static char BootNames[64][16];
+  const U32 I = Index % 64;
+  std::snprintf(BootNames[I], sizeof(BootNames[I]), "fjs-boot-%u", Index);
+  return BootNames[I];
+}
+
+#endif // TRACY_ENABLE
 
 } // namespace FJS
 

@@ -16,12 +16,14 @@ set(FJS_ENABLE_SANITIZERS "none"
 )
 
 if(FJS_ENABLE_TRACY)
-  option(TRACY_ENABLE "" ON)
-  option(TRACY_FIBERS "" ON)
+  set(TRACY_ENABLE ON CACHE BOOL "" FORCE)
+  set(TRACY_FIBERS ON CACHE BOOL "" FORCE)
 
   # Enable the native architecture of this CPU to leverage expanded instruction
   # sets. Ties the binary to the machine where it was compiled.
-  add_compile_options(-march=native)
+  add_compile_options(-march=native -g -fno-omit-frame-pointer)
+else()
+  set(TRACY_ENABLE OFF CACHE BOOL "" FORCE)
 endif()
 
 include(cmake/FetchTracy.cmake)

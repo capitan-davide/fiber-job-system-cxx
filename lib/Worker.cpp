@@ -3,6 +3,7 @@
 #include "JobScheduler.h"
 #include "Shutdown.h"
 #include "SpinLock.h"
+#include "Tracy.h"
 #include "WorkerContext.h"
 
 #include "FJS/Error.h"
@@ -16,8 +17,11 @@ namespace FJS {
 
 namespace {
 
-void workerMain(FJS::JobScheduler *S) {
+void workerMain(FJS::JobScheduler *S, U32 Index) {
   WorkerContext Ctx;
+#ifdef TRACY_ENABLE
+  Ctx.Bootstrap.TracyName = makeTracyBootName(Index);
+#endif
   setThisWorkerContext(&Ctx);
 
   while (!isShutdownRequested()) {
@@ -26,7 +30,7 @@ void workerMain(FJS::JobScheduler *S) {
 
     Ctx.Current = F;
     switchFiber(Ctx.Bootstrap, *Ctx.Current); // returns when a fiber parks
-                                                   // back here
+                                              // back here
     FJS_ASSERT(Ctx.Current, "Nothing parked back to Bootstrap?");
     S->Pool.release(Ctx.Current); // whoever went dry on us - not necessarily F
 
@@ -34,6 +38,7 @@ void workerMain(FJS::JobScheduler *S) {
   }
 
   setThisWorkerContext(nullptr);
+  TracyFiberLeave;
 }
 
 } // namespace
@@ -50,7 +55,7 @@ void startWorkers(WorkerPool &W, JobScheduler &S, U32 Count) {
 
   W.Threads.reserve(Count);
   for (U32 I = 0; I < Count; ++I) {
-    std::thread &T = W.Threads.emplace_back(workerMain, &S);
+    std::thread &T = W.Threads.emplace_back(workerMain, &S, I);
 
     cpu_set_t Cpus;
     CPU_ZERO(&Cpus);

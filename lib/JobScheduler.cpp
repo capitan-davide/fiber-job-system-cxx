@@ -2,6 +2,7 @@
 #include "Counter.h"
 #include "Fiber.h"
 #include "SpinLock.h"
+#include "Tracy.h"
 #include "WorkerContext.h"
 
 #include "FJS/Error.h"
@@ -73,7 +74,10 @@ FIBER_ENTRY_POINT(fiberMain) {
 
     JobDecl JD;
     if (S->Queue.pop(JD)) {
-      JD.EntryFn(JD.Param);
+      {
+        ZoneScopedN("Job");
+        JD.EntryFn(JD.Param);
+      }
       if (JD.Done) {
         const U32 NumWoken = JD.Done->decrement(Woken);
         for (U32 I = 0; I < NumWoken; ++I)
