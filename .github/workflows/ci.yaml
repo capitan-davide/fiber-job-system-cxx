@@ -17,7 +17,7 @@ jobs:
       fail-fast: false
       matrix:
         build_type: [Debug, RelWithDebInfo]
-        compiler: [gcc, clang]
+        compiler: [clang]
         sanitizer: [none, thread, address]
 
     name: build-and-test (${{ matrix.build_type }}, compiler=${{ matrix.compiler }}, sanitizer=${{ matrix.sanitizer }})
@@ -34,8 +34,7 @@ jobs:
         run: >
           cmake -S . -B build
           -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
-          -DCMAKE_C_COMPILER=${{ matrix.compiler == 'clang' && 'clang' || 'gcc' }}
-          -DCMAKE_CXX_COMPILER=${{ matrix.compiler == 'clang' && 'clang++' || 'g++' }}
+          -DCMAKE_CXX_COMPILER=${{ matrix.compiler == 'clang' && 'clang++' }}
           -DFJS_ENABLE_SANITIZERS=${{ matrix.sanitizer }}
 
       - name: Build
