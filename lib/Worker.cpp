@@ -3,10 +3,10 @@
 #include "JobScheduler.h"
 #include "Shutdown.h"
 #include "SpinLock.h"
-#include "Tracy.h"
 #include "WorkerContext.h"
 
 #include "FJS/Error.h"
+#include "FJS/Tracy.h"
 
 #include <cstring>
 
@@ -21,6 +21,10 @@ void workerMain(FJS::JobScheduler *S, U32 Index) {
   WorkerContext Ctx;
 #ifdef TRACY_ENABLE
   Ctx.Bootstrap.TracyName = makeTracyBootName(Index);
+
+  // In short-lived programs, tracy cannot resolve the thread name set with
+  // pthread_setname_np.
+  tracy::SetThreadName(std::format("fjs-w{}", Index).c_str());
 #endif
   setThisWorkerContext(&Ctx);
 
@@ -32,8 +36,8 @@ void workerMain(FJS::JobScheduler *S, U32 Index) {
     switchFiber(Ctx.Bootstrap, *Ctx.Current); // returns when a fiber parks
                                               // back here
     FJS_ASSERT(Ctx.Current, "Nothing parked back to Bootstrap?");
-    S->Pool.release(Ctx.Current); // whoever went dry on us - not necessarily F
 
+    S->Pool.release(Ctx.Current); // whoever went dry on us, not necessarily F
     FJS_PAUSE(); // don't hammer the queue re-entering instantly
   }
 

@@ -16,6 +16,13 @@ set_target_properties(LibFJS
   PROPERTIES OUTPUT_NAME FJS
 )
 
+# Do not generate debug info for our .S file to make Tracy consult the symbol
+# table instead of the assembler's DWARF information (which lacks the function
+# names).
+set_source_files_properties(FiberSwitch.S
+  PROPERTIES COMPILE_OPTIONS "-g0"
+)
+
 target_include_directories(
   LibFJS
   PUBLIC

@@ -4,9 +4,9 @@
 #include "FiberSwitch.h"
 #include "PendingAfterSwitch.h"
 #include "Sanitizer.h"
-#include "Tracy.h"
 
 #include "FJS/Error.h"
+#include "FJS/Tracy.h"
 #include "FJS/Types.h"
 
 #include <atomic>

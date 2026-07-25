@@ -4,6 +4,7 @@
 #include "Worker.h"
 
 #include "FJS/Job.h"
+#include "FJS/Tracy.h"
 
 #include <algorithm>
 #include <array>
@@ -148,6 +149,7 @@ TEST_CASE("A parked fiber can resume on a different worker", "[Worker]") {
       std::this_thread::yield();
     }
     S.Counters.release(RoundDone);
+    FrameMark; // one Tracy frame
   }
 
   FJS::requestShutdown();
@@ -230,6 +232,7 @@ TEST_CASE("Stress: randomized fan-out/fan-in trees", "[Worker][Stress]") {
     S.Counters.release(RootDone);
 
     REQUIRE(Leaves.load() == expectedLeaves(Seed, 3));
+    FrameMark; // one Tracy frame
   }
 
   FJS::requestShutdown();
@@ -293,8 +296,73 @@ TEST_CASE("Race stress: wait and last decrement collide", "[Worker][Stress]") {
     }
 
     S.Counters.release(RoundDone);
+    FrameMark; // one Tracy frame
   }
 
   FJS::requestShutdown();
   FJS::joinWorkers(W);
+}
+
+namespace {
+struct CPUBurnerCtx {
+  FJS::JobScheduler *S;
+  std::atomic<FJS::U32> *Sink; // consumes the result so nothing is elided
+};
+
+FJS::U32 burnCycles() {
+  constexpr FJS::U32 Iterations = 20000;
+
+  FJS::U32 X = 12345;
+  for (FJS::U32 I = 0; I < Iterations; ++I)
+    X = X * 1664525u + 1013904223u;
+  return X;
+}
+
+JOB_ENTRY_POINT(cpuBurner) {
+  auto *Ctx = static_cast<CPUBurnerCtx *>(Arg);
+  Ctx->Sink->fetch_add(burnCycles(), std::memory_order_relaxed);
+}
+
+JOB_ENTRY_POINT(batch) {
+  auto *Ctx = static_cast<CPUBurnerCtx *>(Arg);
+
+  constexpr FJS::U32 Fanout = 32;
+  std::array<FJS::JobDecl, Fanout> Jobs;
+  for (auto &Job : Jobs)
+    Job = {.EntryFn = cpuBurner, .Param = Ctx};
+
+  FJS::Counter *C = Ctx->S->runJobs(Jobs);
+  Ctx->S->waitForCounterAndFree(C);
+}
+} // namespace
+
+TEST_CASE("Profile: fan-out with busy loop", "[.Profile]") {
+  FJS::testing::resetShutdownFlagForTesting();
+  FJS::blockShutdownSignals();
+
+  FJS::JobScheduler S({.SmallFiberCount = 32});
+
+  FJS::WorkerPool W;
+  FJS::startWorkers(W, S, std::min(4u, std::thread::hardware_concurrency()));
+
+  std::atomic<FJS::U32> Sink{0};
+  CPUBurnerCtx Ctx{&S, &Sink};
+
+  const FJS::JobDecl Batch[] = {{.EntryFn = batch, .Param = &Ctx}};
+  for (FJS::U32 Round = 0; Round < 50; ++Round) {
+    FJS::Counter *Done = S.runJobs(Batch);
+
+    const auto Deadline = std::chrono::steady_clock::now() + 30s;
+    while (Done->load() != 0) {
+      REQUIRE(std::chrono::steady_clock::now() < Deadline);
+      std::this_thread::yield();
+    }
+    S.Counters.release(Done);
+    FrameMark; // one Tracy frame
+  }
+
+  FJS::requestShutdown();
+  FJS::joinWorkers(W);
+
+  REQUIRE(Sink.load() != 0); // the work actually happened
 }

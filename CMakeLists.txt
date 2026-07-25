@@ -37,6 +37,7 @@ if(FJS_ENABLE_TRACY)
   # Enable the native architecture of this CPU to leverage expanded instruction
   # sets. Ties the binary to the machine where it was compiled.
   add_compile_options(-march=native -g -fno-omit-frame-pointer)
+  add_link_options(-rdynamic)
 else()
   set(TRACY_ENABLE OFF CACHE BOOL "" FORCE)
 endif()

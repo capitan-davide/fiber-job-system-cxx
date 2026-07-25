@@ -1,12 +1,11 @@
 #include "JobScheduler.h"
 #include "Counter.h"
 #include "Fiber.h"
-#include "SpinLock.h"
-#include "Tracy.h"
 #include "WorkerContext.h"
 
 #include "FJS/Error.h"
 #include "FJS/Job.h"
+#include "FJS/Tracy.h"
 
 #include <array>
 #include <mutex>
@@ -74,10 +73,7 @@ FIBER_ENTRY_POINT(fiberMain) {
 
     JobDecl JD;
     if (S->Queue.pop(JD)) {
-      {
-        ZoneScopedN("Job");
-        JD.EntryFn(JD.Param);
-      }
+      JD.EntryFn(JD.Param);
       if (JD.Done) {
         const U32 NumWoken = JD.Done->decrement(Woken);
         for (U32 I = 0; I < NumWoken; ++I)
@@ -103,6 +99,8 @@ JobScheduler::JobScheduler(const JobSchedulerConfig &Config) {
 }
 
 void JobScheduler::kickJobs(std::span<const JobDecl> Jobs) {
+  ZoneScoped;
+  ZoneValue(Jobs.size());
   for (const JobDecl &JD : Jobs) {
     FJS_ASSERT(JD.EntryFn, "Starting a Job with no entry point");
     Queue.push(JD);
@@ -110,6 +108,7 @@ void JobScheduler::kickJobs(std::span<const JobDecl> Jobs) {
 }
 
 void JobScheduler::drive() {
+  ZoneScoped;
   WorkerContext Ctx; // main volunteers as a worker for the duration
   setThisWorkerContext(&Ctx);
 
@@ -126,6 +125,8 @@ void JobScheduler::drive() {
 }
 
 Counter *JobScheduler::runJobs(std::span<const JobDecl> Jobs) {
+  ZoneScoped;
+  ZoneValue(Jobs.size());
   Counter *C = Counters.acquire(static_cast<U32>(Jobs.size()));
   FJS_ASSERT(C, "Counter pool exhausted");
 
@@ -149,6 +150,7 @@ void JobScheduler::waitForCounter(Counter &C, U32 Target) {
   if (C.load() == Target)
     return; // fast path - no switch, no lock.
 
+  ZoneScoped; // only slow path
   Fiber *Me = ThisWorker->Current;
 
   // Lives in this frame; the frame is frozen while we're parked, and

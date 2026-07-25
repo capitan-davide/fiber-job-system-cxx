@@ -1,8 +1,10 @@
 #ifndef FJS_JOB_H
 #define FJS_JOB_H
 
-/// Declares a job entry function with the required signature:
-/// `void Name(void *Arg)`.
+#include "FJS/Tracy.h"
+
+/// Defines a job entry function with the required signature:
+/// `void Name(void *Arg)`. Must be followed by the function body.
 ///
 /// Unlike `FIBER_ENTRY_POINT`, a job entry *returns normally* - the scheduler
 /// regains control when it does and decrements the job's `Done` counter.
@@ -10,7 +12,13 @@
 /// Exceptions must NOT escape a job: the library is built with
 /// `-fno-exceptions`, and unwinding across a fiber switch lands on the forged
 /// trampoline frame, where there is nothing valid to unwind through.
-#define JOB_ENTRY_POINT(Name) void Name(void *Arg) noexcept
+#define JOB_ENTRY_POINT(Name)                                                  \
+  static void Name##Impl(void *Arg) noexcept;                                  \
+  void Name(void *Arg) noexcept {                                              \
+    ZoneScopedN(#Name);                                                        \
+    Name##Impl(Arg);                                                           \
+  }                                                                            \
+  static void Name##Impl(void *Arg) noexcept
 
 namespace FJS {
 

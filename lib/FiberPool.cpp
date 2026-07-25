@@ -2,6 +2,7 @@
 #include "Fiber.h"
 
 #include "FJS/Error.h"
+#include "FJS/Tracy.h"
 #include "FJS/Types.h"
 
 #include <mutex>
@@ -20,20 +21,26 @@ void FiberPool::shutdown() {
 }
 
 Fiber *FiberPool::acquire(FiberStackSize Size) {
+  ZoneScoped;
   Tier &T = tierFor(Size);
   std::lock_guard G{T.Lock};
 
-  if (T.Free.empty())
+  if (T.Free.empty()) {
+    TracyPlot("Free Fibers", static_cast<I64>(T.Free.size()));
     return nullptr;
+  }
   Fiber *F = T.Free.back();
   T.Free.pop_back();
+  TracyPlot("Free Fibers", static_cast<I64>(T.Free.size()));
   return F;
 }
 
 void FiberPool::release(Fiber *F) {
+  ZoneScoped;
   Tier &T = tierFor(F->Tier);
   std::lock_guard G{T.Lock};
   T.Free.push_back(F);
+  TracyPlot("Free Fibers", static_cast<I64>(T.Free.size()));
 }
 
 void FiberPool::initTier(Tier &T, U32 Count, FiberStackSize Size,
