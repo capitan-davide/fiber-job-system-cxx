@@ -1,7 +1,7 @@
 #ifndef FJS_JOB_QUEUE_H
 #define FJS_JOB_QUEUE_H
 
-#include "SpinLock.h"
+#include "AdaptiveLock.h"
 #include "ThreadSafety.h"
 
 #include "FJS/Job.h"
@@ -22,7 +22,7 @@ public:
 
 private:
   std::deque<JobDecl> Jobs FJS_GUARDED_BY(Lock);
-  SpinLock Lock;
+  AdaptiveLock Lock;
 };
 
 } // namespace FJS

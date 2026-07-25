@@ -1,15 +1,12 @@
-#ifndef FJS_SPINLOCK_H
-#define FJS_SPINLOCK_H
+#ifndef FJS_SPIN_LOCK_H
+#define FJS_SPIN_LOCK_H
 
+#include "Platform.h"
 #include "ThreadSafety.h"
 
 #include "FJS/Error.h"
 
 #include <atomic>
-
-#include <emmintrin.h>
-
-#define FJS_PAUSE() _mm_pause()
 
 namespace FJS {
 
@@ -69,4 +66,4 @@ private:
 
 } // namespace FJS
 
-#endif // FJS_SPINLOCK_H
+#endif // FJS_SPIN_LOCK_H

@@ -1,8 +1,8 @@
 #ifndef FJS_COUNTER_POOL_H
 #define FJS_COUNTER_POOL_H
 
+#include "AdaptiveLock.h"
 #include "Counter.h"
-#include "SpinLock.h"
 #include "ThreadSafety.h"
 
 #include "FJS/Types.h"
@@ -35,7 +35,7 @@ public:
 private:
   std::array<Counter, MaxCounters> Counters;
   std::vector<Counter *> Free FJS_GUARDED_BY(Lock); // LIFO
-  SpinLock Lock;
+  AdaptiveLock Lock;
 };
 
 } // namespace FJS
