@@ -7,6 +7,10 @@ endif()
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_LINKER_TYPE LLD)
+
+add_compile_options(-stdlib=libc++)
+add_link_options(-stdlib=libc++)
 
 option(FJS_BUILD_TESTS "Build the Catch2 test suite" ON)
 option(FJS_USE_UCONTEXT "Use ucontext fiber backend as default" OFF)
@@ -41,6 +45,6 @@ add_subdirectory(lib)
 
 include(CTest)
 if(FJS_BUILD_TESTS)
-  find_package(Catch2 CONFIG REQUIRED)
+  include(cmake/FetchCatch2.cmake)
   add_subdirectory(test)
 endif()
