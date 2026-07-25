@@ -26,7 +26,7 @@ jobs:
       - name: Install dependencies
         run: |
           pacman -Syu --noconfirm
-          pacman -S --noconfirm --needed base-devel cmake git catch2 clang
+          pacman -S --noconfirm --needed base-devel git cmake clang libc++ libc++abi lld
 
       - uses: actions/checkout@v4
 
@@ -38,7 +38,7 @@ jobs:
           -DFJS_ENABLE_SANITIZERS=${{ matrix.sanitizer }}
 
       - name: Build
-        run: cmake --build build -j"$(nproc)"
+        run: cmake --build build --parallel "$(nproc)"
 
       - name: Test
         run: ctest --build-dir build --output-on-failure
