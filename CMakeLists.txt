@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 4.0)
-project(fiber-job-system VERSION 0.1.0 LANGUAGES CXX ASM)
+project(FiberJobSystem VERSION 0.1.0 LANGUAGES CXX ASM)
 
 if(NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   message(FATAL_ERROR "This project only supports Clang (got ${CMAKE_CXX_COMPILER_ID})")
