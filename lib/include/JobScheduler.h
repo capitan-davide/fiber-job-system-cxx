@@ -62,12 +62,12 @@ public:
   ///
   /// \pre \p F is parked, not currently in the ready list, the free pool or
   ///      any Counter's wait list.
-  void pushReady(Fiber *F);
+  void pushReady(Fiber *F) FJS_REQUIRES(!ReadyLock);
 
   /// Pops a fiber pushed by pushReady - one whose wait is over and ready to
   /// resume. Returns nullptr if the Ready list is empty: not an error,
   /// fiberMain falls through to pulling a new job instead.
-  Fiber *popReady();
+  Fiber *popReady() FJS_REQUIRES(!ReadyLock);
 
   /// Tears the scheduler down and audits for leaks: every fiber back in the
   /// pool, every counter returned. Call after the last worker has been joined

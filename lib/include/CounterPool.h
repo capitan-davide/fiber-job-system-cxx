@@ -21,7 +21,7 @@ public:
   CounterPool();
 
   /// \return A counter armed with \p Value, or nullptr if the stock is out.
-  Counter *acquire(U32 Value);
+  Counter *acquire(U32 Value) FJS_REQUIRES(!Lock);
 
   /// Return \p C to the pool. The caller's pointer is dead after this call -
   /// the counter may be rearmed and handed to an unrelated batch at any time.
@@ -30,7 +30,7 @@ public:
   /// \pre No job still holts \p C as its `Done` and no fiber is parked on it:
   ///      releasing a counter that can still be decremented or waited on hands
   ///      the next batch a counter someone else will mutate.
-  void release(Counter *C);
+  void release(Counter *C) FJS_REQUIRES(!Lock);
 
 private:
   std::array<Counter, MaxCounters> Counters;

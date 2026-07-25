@@ -43,11 +43,12 @@ target_link_libraries(
 # markings).
 target_compile_options(LibFJS
   PUBLIC
+    -Wthread-safety
+    -Wthread-safety-negative
     -fcf-protection=none
   PRIVATE
     -fno-exceptions
     -fno-rtti
-    -Wthread-safety
 )
 
 if(FJS_USE_UCONTEXT)

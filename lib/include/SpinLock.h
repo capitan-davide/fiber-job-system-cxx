@@ -38,6 +38,10 @@ public:
 
   bool isLocked() const { return Flag.test(std::memory_order_relaxed); }
 
+  /// Negative-capability support: makes FJS_REQUIRES(!Lock) a valid
+  /// expression - the analysis needs operator! on the capability type.
+  const SpinLock &operator!() const { return *this; }
+
 private:
   std::atomic_flag Flag;
 };

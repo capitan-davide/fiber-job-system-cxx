@@ -14,11 +14,11 @@ namespace FJS {
 class JobQueue {
 public:
   /// Enqueues a copy of \p JD at the tail.
-  void push(const JobDecl &JD);
+  void push(const JobDecl &JD) FJS_REQUIRES(!Lock);
 
   /// Dequeues the oldest job into /p Out.
   /// \return false if the queue was empty (\p Out is left untouched).
-  bool pop(JobDecl &Out);
+  bool pop(JobDecl &Out) FJS_REQUIRES(!Lock);
 
 private:
   std::deque<JobDecl> Jobs FJS_GUARDED_BY(Lock);

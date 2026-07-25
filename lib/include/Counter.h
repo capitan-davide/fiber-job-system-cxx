@@ -57,7 +57,7 @@ public:
   /// Records on completed job. When the new value satisfies waiters, they are
   /// removed from the wait list and returned in \p Woken.
   /// \return Number of entries written to \p Woken.
-  U32 decrement(std::span<Fiber *, MaxWaiters> Woken);
+  U32 decrement(std::span<Fiber *, MaxWaiters> Woken) FJS_REQUIRES(!Lock);
 
   // Current value; 0 means every expected job has finished.
   U32 load() const;
@@ -65,7 +65,7 @@ public:
   /// Registers \p F to be woken when the value reaches \p Target.
   /// \return false if the value is ALREADY at Target - the caller must not
   ///         park, nothing was registered.
-  bool addWaiter(Fiber *F, U32 Target);
+  bool addWaiter(Fiber *F, U32 Target) FJS_REQUIRES(!Lock);
 
 private:
   friend class CounterPool; // the only code allower to rearm the counter
