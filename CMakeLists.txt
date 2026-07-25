@@ -9,6 +9,8 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_LINKER_TYPE LLD)
 
+# Support only libc++ for now, required by Clang Thread Safety Analysis
+# annotations.
 add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-stdlib=libc++>)
 add_link_options(-stdlib=libc++)
 
@@ -21,6 +23,11 @@ option(FJS_ENABLE_TRACY "Enable the Tracy profiler" OFF)
 set(FJS_ENABLE_SANITIZERS "none"
   CACHE STRING
   "Sanitizer(s) to enable (comma-separated), or 'none'"
+)
+
+set(FJS_ENABLE_LTO "none"
+  CACHE STRING
+  "Build with LTO. May be specified as 'thin', 'full', or 'none'"
 )
 
 if(FJS_ENABLE_TRACY)
@@ -39,6 +46,11 @@ include(cmake/FetchTracy.cmake)
 if(NOT FJS_ENABLE_SANITIZERS STREQUAL "none")
   add_compile_options(-fsanitize=${FJS_ENABLE_SANITIZERS} -fno-omit-frame-pointer)
   add_link_options(-fsanitize=${FJS_ENABLE_SANITIZERS})
+endif()
+
+if(NOT FJS_ENABLE_LTO STREQUAL "none")
+  add_compile_options(-flto=${FJS_ENABLE_LTO})
+  add_link_options(-flto=${FJS_ENABLE_LTO})
 endif()
 
 add_subdirectory(lib)
