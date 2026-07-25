@@ -3,6 +3,7 @@
 
 #include "Fiber.h"
 #include "SpinLock.h"
+#include "ThreadSafety.h"
 
 #include "FJS/Types.h"
 
@@ -43,13 +44,14 @@ public:
 private:
   struct Tier {
     std::vector<Fiber> Fibers;
-    std::vector<Fiber *> Free;
+    std::vector<Fiber *> Free FJS_GUARDED_BY(Lock);
     SpinLock Lock;
   };
 
   void initTier(Tier &T, U32 Count, FiberStackSize Size,
-                void (*EntryFn)(void *), void *Arg);
-  void shutdownTier(Tier &T);
+                void (*EntryFn)(void *),
+                void *Arg) FJS_NO_THREAD_SAFETY_ANALYSIS;
+  void shutdownTier(Tier &T) FJS_NO_THREAD_SAFETY_ANALYSIS;
   Tier &tierFor(FiberStackSize Size);
 
   Tier Small, Large;

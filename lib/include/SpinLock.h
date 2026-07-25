@@ -1,6 +1,8 @@
 #ifndef FJS_SPINLOCK_H
 #define FJS_SPINLOCK_H
 
+#include "ThreadSafety.h"
+
 #include "FJS/Error.h"
 
 #include <atomic>
@@ -11,14 +13,14 @@
 
 namespace FJS {
 
-class SpinLock {
+class FJS_CAPABILITY("mutex") SpinLock {
 public:
-  bool tryLock() {
+  bool tryLock() FJS_TRY_ACQUIRE(true) {
     bool IsLocked = Flag.test_and_set(std::memory_order_acquire);
     return !IsLocked;
   }
 
-  void lock() {
+  void lock() FJS_ACQUIRE() {
     while (!tryLock()) {
       // Avoid hammering RMW by spinning on a read. If we tryLock() in the
       // tight loop every attempt is a RMW that grab the cache line in
@@ -32,7 +34,7 @@ public:
     }
   }
 
-  void unlock() { Flag.clear(std::memory_order_release); }
+  void unlock() FJS_RELEASE() { Flag.clear(std::memory_order_release); }
 
   bool isLocked() const { return Flag.test(std::memory_order_relaxed); }
 

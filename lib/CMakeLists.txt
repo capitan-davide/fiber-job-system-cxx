@@ -47,6 +47,7 @@ target_compile_options(LibFJS
   PRIVATE
     -fno-exceptions
     -fno-rtti
+    -Wthread-safety
 )
 
 if(FJS_USE_UCONTEXT)

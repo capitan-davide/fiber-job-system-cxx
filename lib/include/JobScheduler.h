@@ -6,6 +6,7 @@
 #include "FiberPool.h"
 #include "JobQueue.h"
 #include "SpinLock.h"
+#include "ThreadSafety.h"
 
 #include "FJS/Job.h"
 
@@ -82,7 +83,7 @@ public:                 // TODO: This has to become private at some point
 private:
   /// Fibers whose wait is over, ready to be resumed. fiberMain drains this
   /// BEFORE pulling new jobs (finish in-flight work before starting more).
-  std::vector<Fiber *> Ready;
+  std::vector<Fiber *> Ready FJS_GUARDED_BY(ReadyLock);
   SpinLock ReadyLock;
 };
 

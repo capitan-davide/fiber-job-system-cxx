@@ -5,10 +5,12 @@
 #include "SpinLock.h"
 
 #include "FJS/Types.h"
+#include "ThreadSafety.h"
 
 #include <array>
 #include <atomic>
 #include <span>
+#include <string_view>
 
 namespace FJS {
 
@@ -72,10 +74,18 @@ private:
   /// calls this - and only on counters nobody can see.
   void reset(U32 NewValue);
 
+  /// Debug tripwire for CounterPool::release. Exempt from thread-safety
+  /// analysis.
+  void assertNoWaiters(std::string_view ErrorMsg) const
+      FJS_NO_THREAD_SAFETY_ANALYSIS {
+    for (const Waiter &W : Waiters)
+      FJS_ASSERT(!W.ParkedFiber, "{}", ErrorMsg);
+  }
+
 private:
   std::atomic<U32> Value;
   SpinLock Lock;
-  std::array<Waiter, MaxWaiters> Waiters;
+  std::array<Waiter, MaxWaiters> Waiters FJS_GUARDED_BY(Lock);
 };
 
 } // namespace FJS

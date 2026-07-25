@@ -3,6 +3,7 @@
 
 #include "Counter.h"
 #include "SpinLock.h"
+#include "ThreadSafety.h"
 
 #include "FJS/Types.h"
 
@@ -33,7 +34,7 @@ public:
 
 private:
   std::array<Counter, MaxCounters> Counters;
-  std::vector<Counter *> Free; // LIFO
+  std::vector<Counter *> Free FJS_GUARDED_BY(Lock); // LIFO
   SpinLock Lock;
 };
 

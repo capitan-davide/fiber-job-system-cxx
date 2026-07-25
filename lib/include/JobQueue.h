@@ -2,6 +2,7 @@
 #define FJS_JOB_QUEUE_H
 
 #include "SpinLock.h"
+#include "ThreadSafety.h"
 
 #include "FJS/Job.h"
 
@@ -20,7 +21,7 @@ public:
   bool pop(JobDecl &Out);
 
 private:
-  std::deque<JobDecl> Jobs;
+  std::deque<JobDecl> Jobs FJS_GUARDED_BY(Lock);
   SpinLock Lock;
 };
 

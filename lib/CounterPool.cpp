@@ -27,8 +27,7 @@ void CounterPool::release(Counter *C) {
 
   // A counter must release clean: a parked waiter here is a fiber that will
   // never be woken.
-  for (const Waiter &W : C->Waiters)
-    FJS_ASSERT(!W.ParkedFiber, "Counter released while still has waiters");
+  C->assertNoWaiters("Counter released while still has waiters");
   Free.push_back(C);
 }
 
