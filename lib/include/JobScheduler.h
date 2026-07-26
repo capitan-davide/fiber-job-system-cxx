@@ -1,15 +1,16 @@
 #ifndef FJS_JOB_SCHEDULER_H
 #define FJS_JOB_SCHEDULER_H
 
+#include "AdaptiveLock.h"
 #include "CounterPool.h"
 #include "Fiber.h"
 #include "FiberPool.h"
 #include "JobQueue.h"
-#include "SpinLock.h"
 #include "ThreadSafety.h"
 
 #include "FJS/Job.h"
 
+#include <semaphore>
 #include <span>
 #include <vector>
 
@@ -45,6 +46,12 @@ public:
   /// main thread or inside a running job.
   Counter *runJobs(std::span<const JobDecl> Jobs);
 
+  /// Schedules \p Jobs on IO threads as one batch and returns the counter
+  /// tracking it: armed with the batch size, decremented once per finished job.
+  /// Pass it to `waitForCounterAndFree` to block on the batch. Safe from
+  /// anywhere: the main thread or inside a running job.
+  Counter *runIOJobs(std::span<const JobDecl> Jobs);
+
   /// Blocks the CURRENT Fiber (not the thread) until \p C reaches \p Target.
   void waitForCounter(Counter &C, U32 Target = 0);
 
@@ -74,17 +81,26 @@ public:
   /// (with workers alive this is a data race, and the audit would lie).
   void shutdown();
 
-public:                 // TODO: This has to become private at some point
-  JobQueue Queue;       // pending jobs - FIFO
-  FiberPool Pool;       // fibers that run fiberMain when idle
-  CounterPool Counters; // issued by runJobs, reclaimed by
-                        // waitForCountersAndFree
+private:
+  Counter *runJobsOn(JobQueue &Q, std::span<const JobDecl> Jobs);
+
+public:                        // TODO: This has to become private at some point
+  JobQueue Queue{"JobQueue"};  // pending jobs - FIFO
+  JobQueue IOQueue{"IOQueue"}; // pending IO jobs - FIFO
+  FiberPool Pool;              // fibers that run fiberMain when idle
+  CounterPool Counters;        // issued by runJobs, reclaimed by
+                               // waitForCountersAndFree
+
+  /// One token per job sitting in IOQueue: IO threads sleep in acquire()
+  /// instead of spinning. joinIOThreads hands out one extra token per thread
+  /// so a sleeper can wake up and notice the shutdown flag.
+  std::counting_semaphore<> IOReady{0};
 
 private:
   /// Fibers whose wait is over, ready to be resumed. fiberMain drains this
   /// BEFORE pulling new jobs (finish in-flight work before starting more).
   std::vector<Fiber *> Ready FJS_GUARDED_BY(ReadyLock);
-  SpinLock ReadyLock;
+  AdaptiveLock ReadyLock;
 };
 
 } // namespace FJS

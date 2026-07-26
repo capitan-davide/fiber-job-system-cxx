@@ -12,7 +12,7 @@ void JobQueue::push(const JobDecl &JD) {
   ZoneScoped;
   std::lock_guard G{Lock};
   Jobs.push_back(JD);
-  TracyPlot("JobQueue Size", static_cast<I64>(Jobs.size()));
+  TracyPlot(TracyPlotName, static_cast<I64>(Jobs.size()));
 }
 
 bool JobQueue::pop(JobDecl &Out) {
@@ -20,12 +20,12 @@ bool JobQueue::pop(JobDecl &Out) {
   std::lock_guard G{Lock};
 
   if (Jobs.empty()) {
-    TracyPlot("JobQueue Size", static_cast<I64>(Jobs.size()));
+    TracyPlot(TracyPlotName, static_cast<I64>(Jobs.size()));
     return false;
   }
   Out = Jobs.front();
   Jobs.pop_front();
-  TracyPlot("JobQueue Size", static_cast<I64>(Jobs.size()));
+  TracyPlot(TracyPlotName, static_cast<I64>(Jobs.size()));
   return true;
 }
 

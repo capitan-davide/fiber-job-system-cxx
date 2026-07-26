@@ -8,6 +8,7 @@
 #include "FJS/Tracy.h"
 
 #include <array>
+#include <cstddef>
 #include <mutex>
 
 namespace FJS {
@@ -127,15 +128,14 @@ void JobScheduler::drive() {
 Counter *JobScheduler::runJobs(std::span<const JobDecl> Jobs) {
   ZoneScoped;
   ZoneValue(Jobs.size());
-  Counter *C = Counters.acquire(static_cast<U32>(Jobs.size()));
-  FJS_ASSERT(C, "Counter pool exhausted");
+  return runJobsOn(Queue, Jobs);
+}
 
-  for (JobDecl JD : Jobs) {
-    FJS_ASSERT(!JD.Done, "runJobs owns Done - don't set it");
-    FJS_ASSERT(JD.EntryFn, "Starting a Job with no entry point");
-    JD.Done = C;
-    Queue.push(JD);
-  }
+Counter *JobScheduler::runIOJobs(std::span<const JobDecl> Jobs) {
+  ZoneScoped;
+  ZoneValue(Jobs.size());
+  Counter *C = runJobsOn(IOQueue, Jobs);
+  IOReady.release(static_cast<std::ptrdiff_t>(Jobs.size()));
   return C;
 }
 
@@ -176,8 +176,6 @@ void JobScheduler::waitForCounterAndFree(Counter *C) {
   Counters.release(C);
 }
 
-void JobScheduler::shutdown() { Pool.shutdown(); }
-
 void JobScheduler::pushReady(Fiber *F) {
   FJS_ASSERT(F->SP, "Pushing a non-parked fiber to the ready list");
   std::lock_guard G{ReadyLock};
@@ -191,6 +189,21 @@ Fiber *JobScheduler::popReady() {
   Fiber *F = Ready.back();
   Ready.pop_back();
   return F;
+}
+
+void JobScheduler::shutdown() { Pool.shutdown(); }
+
+Counter *JobScheduler::runJobsOn(JobQueue &Q, std::span<const JobDecl> Jobs) {
+  Counter *C = Counters.acquire(static_cast<U32>(Jobs.size()));
+  FJS_ASSERT(C, "Counter pool exhausted");
+
+  for (JobDecl JD : Jobs) {
+    FJS_ASSERT(!JD.Done, "runJobs owns Done - don't set it");
+    FJS_ASSERT(JD.EntryFn, "Starting a Job with no entry point");
+    JD.Done = C;
+    Q.push(JD);
+  }
+  return C;
 }
 
 } // namespace FJS

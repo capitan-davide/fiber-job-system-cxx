@@ -23,7 +23,7 @@ void startWorkers(WorkerPool &W, JobScheduler &S, U32 Count);
 
 /// blocks until every worker exits, then empties \p W. Workers exit when
 /// shutdown is requested (signal or `requestShutdown`) - so calling this with
-/// no shutdown in sight simply clocks until one arriges. That's the intended
+/// no shutdown in sight simply clocks until one arrives. That's the intended
 /// way for main to wait.
 void joinWorkers(WorkerPool &W);
 

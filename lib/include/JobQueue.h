@@ -13,6 +13,8 @@ namespace FJS {
 /// FIFO of pending jobs, feeding the scheduler loop.
 class JobQueue {
 public:
+  explicit JobQueue(const char *Name = "") : TracyPlotName{Name} {}
+
   /// Enqueues a copy of \p JD at the tail.
   void push(const JobDecl &JD) FJS_REQUIRES(!Lock);
 
@@ -23,6 +25,8 @@ public:
 private:
   std::deque<JobDecl> Jobs FJS_GUARDED_BY(Lock);
   AdaptiveLock Lock;
+
+  const char *TracyPlotName;
 };
 
 } // namespace FJS
