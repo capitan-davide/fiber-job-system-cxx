@@ -1,12 +1,15 @@
 #include "IOThread.h"
 #include "JobScheduler.h"
 #include "Shutdown.h"
-#include <tracy/Tracy.hpp>
+
+#include "FJS/Tracy.h"
 
 namespace FJS {
 
 namespace {
 void ioMain(JobScheduler *S, U32 Index) {
+  ZoneScoped;
+
   std::array<Fiber *, Counter::MaxWaiters> Woken;
 
 #ifdef TRACY_ENABLE
@@ -64,7 +67,9 @@ void startIOThreads(IOThreadPool &P, JobScheduler &S, U32 Count) {
   }
 }
 
-void joinIOThreads(IOThreadPool &P) {
+void joinIOThreads(IOThreadPool &P, JobScheduler &S) {
+  // Wake-up each thread so that it can evaluate the shutdown flag.
+  S.IOReady.release(static_cast<std::ptrdiff_t>(P.Threads.size()));
   for (std::thread &T : P.Threads)
     T.join();
   P.Threads.clear();

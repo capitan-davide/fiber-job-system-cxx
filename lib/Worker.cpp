@@ -18,6 +18,8 @@ namespace FJS {
 namespace {
 
 void workerMain(FJS::JobScheduler *S, U32 Index) {
+  ZoneScoped;
+
   WorkerContext Ctx;
 #ifdef TRACY_ENABLE
   Ctx.Bootstrap.TracyName = makeTracyBootName(Index);
