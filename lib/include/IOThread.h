@@ -25,7 +25,7 @@ void startIOThreads(IOThreadPool &P, JobScheduler &S, U32 Count);
 /// shutdown is requested (signal or `requestShutdown`) - so calling this with
 /// no shutdown in sight simply clocks until one arrives. That's the intended
 /// way for main to wait.
-void joinIOThreads(IOThreadPool &P);
+void joinIOThreads(IOThreadPool &P, JobScheduler &S);
 
 } // namespace FJS
 

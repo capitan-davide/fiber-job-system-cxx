@@ -1,4 +1,5 @@
 #include "Counter.h"
+#include "IOThread.h"
 #include "JobScheduler.h"
 #include "Shutdown.h"
 #include "Worker.h"
@@ -365,4 +366,72 @@ TEST_CASE("Profile: fan-out with busy loop", "[.Profile]") {
   FJS::joinWorkers(W);
 
   REQUIRE(Sink.load() != 0); // the work actually happened
+}
+
+namespace {
+struct IOTestCtx {
+  FJS::JobScheduler *S;
+  std::atomic<std::thread::id> *RanOn; // which thread actually slept
+};
+
+JOB_ENTRY_POINT(sleep) { // runs on an IO thread - blocking it
+  auto *Ctx = static_cast<IOTestCtx *>(Arg);
+  Ctx->RanOn->store(std::this_thread::get_id(), std::memory_order_relaxed);
+  std::this_thread::sleep_for(100ms);
+}
+
+JOB_ENTRY_POINT(requestIO) { // runs on a worker fiber
+  auto *Ctx = static_cast<IOTestCtx *>(Arg);
+  const FJS::JobDecl IO[] = {{.EntryFn = sleep, .Param = Ctx}};
+  FJS::Counter *C = Ctx->S->runIOJobs(IO);
+  Ctx->S->waitForCounterAndFree(C);
+}
+} // namespace
+
+TEST_CASE("IO job blocks off the worker pool and resumes its fiber", "[IO]") {
+  FJS::testing::resetShutdownFlagForTesting();
+  FJS::blockShutdownSignals();
+
+  FJS::JobScheduler S{{.SmallFiberCount = 8}};
+
+  FJS::WorkerPool W;
+  FJS::startWorkers(W, S, std::min(2u, std::thread::hardware_concurrency()));
+
+  // Save the thread id before joining: joinWorkers clears the vector.
+  std::vector<std::thread::id> WorkerIDs;
+  for (const std::thread &T : W.Threads)
+    WorkerIDs.push_back(T.get_id());
+
+  FJS::IOThreadPool P;
+  FJS::startIOThreads(P, S, 1);
+
+  // Save the thread id before joining: joinIOThreads clears the vector.
+  REQUIRE(P.Threads.size() == 1);
+  const std::thread::id IOThreadID = P.Threads[0].get_id();
+
+  std::atomic<std::thread::id> RanOn{};
+  IOTestCtx Ctx{&S, &RanOn};
+
+  const FJS::JobDecl Jobs[] = {{.EntryFn = requestIO, .Param = &Ctx}};
+  FJS::Counter *C = S.runJobs(Jobs);
+
+  // Main can't waitForCounter (worker-only) - deadline poll instead.
+  const auto Deadline = std::chrono::steady_clock::now() + 5s;
+  while (C->load() != 0) {
+    REQUIRE(std::chrono::steady_clock::now() < Deadline);
+    std::this_thread::yield();
+  }
+  S.Counters.release(C);
+
+  FJS::requestShutdown();
+  FJS::joinWorkers(W);
+  FJS::joinIOThreads(P, S);
+
+  // The join ordered every store above; relaxed is enough.
+  const std::thread::id RanOnID = RanOn.load(std::memory_order_relaxed);
+  REQUIRE(RanOnID != std::thread::id{});
+  REQUIRE(std::ranges::find(WorkerIDs, RanOnID) == WorkerIDs.end());
+  REQUIRE(RanOnID == IOThreadID);
+
+  S.shutdown(); // leak audit: every fiber and counter is back into the pool
 }
