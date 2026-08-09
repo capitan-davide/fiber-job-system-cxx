@@ -18,7 +18,7 @@ class CounterPool {
 public:
   static constexpr U32 MaxCounters = 16;
 
-  CounterPool();
+  void init();
 
   /// \return A counter armed with \p Value, or nullptr if the stock is out.
   Counter *acquire(U32 Value) FJS_REQUIRES(!Lock);

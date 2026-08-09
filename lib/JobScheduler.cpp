@@ -93,10 +93,11 @@ FIBER_ENTRY_POINT(fiberMain) {
 
 } // namespace
 
-JobScheduler::JobScheduler(const JobSchedulerConfig &Config) {
+void JobScheduler::init(const JobSchedulerConfig &Config) {
   Pool.init({.SmallFiberCount = Config.SmallFiberCount,
              .LargeFiberCount = Config.LargeFiberCount},
             fiberMain, this);
+  Counters.init();
 }
 
 void JobScheduler::kickJobs(std::span<const JobDecl> Jobs) {

@@ -26,7 +26,7 @@ struct JobSchedulerConfig {
 /// reached through the thread_local ThisWorker.
 class JobScheduler {
 public:
-  explicit JobScheduler(const JobSchedulerConfig &Config = {});
+  void init(const JobSchedulerConfig &Config = {});
 
   /// Queues a batch of jobs. Does not run anything. Safe to call from anywhere:
   /// the main thread, or from inside a running job.

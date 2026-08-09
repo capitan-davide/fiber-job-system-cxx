@@ -7,7 +7,7 @@
 
 namespace FJS {
 
-CounterPool::CounterPool() {
+void CounterPool::init() {
   Free.reserve(MaxCounters); // capacity is final: Free never reallocates
   for (Counter &C : Counters)
     Free.push_back(&C);

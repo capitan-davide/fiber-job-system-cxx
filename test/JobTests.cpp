@@ -59,7 +59,8 @@ TEST_CASE("Counter counts down to zero", "[Job]") {
 }
 
 TEST_CASE("Kicked jobs runs a batch to completion", "[Job]") {
-  FJS::JobScheduler S({.SmallFiberCount = 2});
+  FJS::JobScheduler S;
+  S.init({.SmallFiberCount = 2});
 
   unsigned Ran = 0;
   FJS::Counter C1(5);
@@ -91,7 +92,8 @@ TEST_CASE("Kicked jobs runs a batch to completion", "[Job]") {
 
 TEST_CASE("waitForCounter returns immediately when already satisfied",
           "[Job]") {
-  FJS::JobScheduler S({.SmallFiberCount = 2});
+  FJS::JobScheduler S;
+  S.init({.SmallFiberCount = 2});
 
   // Pose as a worker, but no current fiber: the fast path never needs one, and
   // a slow path taken by mistake would abort on the nullptr - the test asserts
@@ -135,7 +137,8 @@ TEST_CASE("waitForCounter parks the fiber and resumes it on completion",
           "[Job]") {
   // Exactly 2: the batch fiber + the one on the slow path acquires. A third
   // acquire would mean we're leaking fibers per wait - let it abort.
-  FJS::JobScheduler S({.SmallFiberCount = 2});
+  FJS::JobScheduler S;
+  S.init({.SmallFiberCount = 2});
 
   FJS::Counter C{1};
   std::vector<std::string_view> Log;
@@ -190,8 +193,9 @@ JOB_ENTRY_POINT(animateAllObjects) {
 
 TEST_CASE("AnimateAllObjects: fan out 100 jobs, wait, free the counter",
           "[Job]") {
-  FJS::JobScheduler S({.SmallFiberCount = 2}); // 2 again: the outer job's fiber
-                                               // + the one its wait acquires.
+  FJS::JobScheduler S;
+  S.init({.SmallFiberCount = 2}); // 2 again: the outer job's fiber + the one
+                                  // its wait acquires.
 
   std::array<AnimateObject, 100> Objects;
   AnimateTestCtx Ctx{&S, Objects};
