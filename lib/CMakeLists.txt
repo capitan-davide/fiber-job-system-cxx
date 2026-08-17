@@ -4,6 +4,7 @@ add_library(LibFJS STATIC
   Fiber.cpp
   FiberPool.cpp
   FiberSwitch.S
+  FJS.cpp
   IOThread.cpp
   JobQueue.cpp
   JobScheduler.cpp
