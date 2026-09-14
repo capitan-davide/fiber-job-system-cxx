@@ -6,6 +6,7 @@
 #include <cerrno>
 #include <cstdlib>
 #include <cstring>
+#include <system_error>
 
 #include <sys/wait.h>
 #include <unistd.h>
@@ -24,7 +25,7 @@ namespace FJS::testing {
 template <typename Fn> int diesWithSignal(Fn &&F) {
   pid_t Pid = ::fork();
   if (Pid == -1)
-    FAIL("fork: " << std::strerror(errno));
+    FAIL("fork: " << std::make_error_code(std::errc{errno}).message());
 
   if (Pid == 0) {
     F();

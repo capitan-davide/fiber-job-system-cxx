@@ -7,7 +7,7 @@
 namespace FJS {
 
 U32 Counter::decrement(std::span<Fiber *, MaxWaiters> Woken) {
-  std::lock_guard G{Lock};
+  std::scoped_lock G{Lock};
 
   // release is needed here: even though we own Lock, some other thread can
   // still load(), which does not require Lock to be held.
@@ -30,7 +30,7 @@ U32 Counter::decrement(std::span<Fiber *, MaxWaiters> Woken) {
 U32 Counter::load() const { return Value.load(std::memory_order_acquire); }
 
 bool Counter::addWaiter(Fiber *F, U32 Target) {
-  std::lock_guard G{Lock};
+  std::scoped_lock G{Lock};
 
   // The whole point of this function: the check and the registration happen
   // under the same lock. A decrement cannot land between them.

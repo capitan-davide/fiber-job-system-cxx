@@ -66,7 +66,7 @@ FIBER_ENTRY_POINT(fiberMain) {
 
       // We're idle once Next runs, so we go back to the pool - but publishing
       // this fiber must wait until we're off its stack: after-switch callback.
-      ReleaseFiberArgs Args = {S, Me};
+      ReleaseFiberArgs Args = {.S = S, .F = Me};
       switchFiber(*Me, *Next, nullptr, releaseFiber, &Args);
       continue; // resumed: re-start the loop to check for ready fibers before
                 // getting a new job
@@ -156,7 +156,8 @@ void JobScheduler::waitForCounter(Counter &C, U32 Target) {
 
   // Lives in this frame; the frame is frozen while we're parked, and
   // registerWaiter finishes long before we can be resumed and pop it.
-  RegisterWaiterArgs Args = {this, &C, Target, Me};
+  RegisterWaiterArgs Args = {
+      .S = this, .C = &C, .Target = Target, .Waiter = Me};
 
   // Hand control to a fresh scheduler loop, running fiberMain.
   Fiber *Next = Pool.acquire(FiberStackSize::Small);
@@ -179,12 +180,12 @@ void JobScheduler::waitForCounterAndFree(Counter *C) {
 
 void JobScheduler::pushReady(Fiber *F) {
   FJS_ASSERT(F->SP, "Pushing a non-parked fiber to the ready list");
-  std::lock_guard G{ReadyLock};
+  std::scoped_lock G{ReadyLock};
   Ready.push_back(F);
 }
 
 Fiber *JobScheduler::popReady() {
-  std::lock_guard G{ReadyLock};
+  std::scoped_lock G{ReadyLock};
   if (Ready.empty())
     return nullptr;
   Fiber *F = Ready.back();

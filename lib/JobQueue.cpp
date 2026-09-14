@@ -10,14 +10,14 @@ namespace FJS {
 
 void JobQueue::push(const JobDecl &JD) {
   ZoneScoped;
-  std::lock_guard G{Lock};
+  std::scoped_lock G{Lock};
   Jobs.push_back(JD);
   TracyPlot(TracyPlotName, static_cast<I64>(Jobs.size()));
 }
 
 bool JobQueue::pop(JobDecl &Out) {
   ZoneScoped;
-  std::lock_guard G{Lock};
+  std::scoped_lock G{Lock};
 
   if (Jobs.empty()) {
     TracyPlot(TracyPlotName, static_cast<I64>(Jobs.size()));

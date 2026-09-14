@@ -1,0 +1,13 @@
+---
+Checks:
+  -*,
+  bugprone-*,
+  concurrency-*,
+  performance-*,
+  portability-*,
+  modernize-*,
+  -modernize-use-trailing-return-type
+WarningsAsErrors: ''
+FormatStyle:  file
+...
+

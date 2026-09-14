@@ -63,7 +63,8 @@ void startIOThreads(IOThreadPool &P, JobScheduler &S, U32 Count) {
     // htop, and TSan reports.
     int Err = pthread_setname_np(T.native_handle(),
                                  std::format("fjs-io{}", I).c_str());
-    FJS_ASSERT(!Err, "Failed to name worker {}: {}", I, std::strerror(Err));
+    FJS_ASSERT(!Err, "Failed to name worker {}: {}", I,
+               std::make_error_code(std::errc{Err}).message());
   }
 }
 

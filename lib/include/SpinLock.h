@@ -33,7 +33,9 @@ public:
 
   void unlock() FJS_RELEASE() { Flag.clear(std::memory_order_release); }
 
-  bool isLocked() const { return Flag.test(std::memory_order_relaxed); }
+  [[nodiscard]] bool isLocked() const {
+    return Flag.test(std::memory_order_relaxed);
+  }
 
   /// Negative-capability support: makes FJS_REQUIRES(!Lock) a valid
   /// expression - the analysis needs operator! on the capability type.

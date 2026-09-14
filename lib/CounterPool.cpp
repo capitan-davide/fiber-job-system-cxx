@@ -15,7 +15,7 @@ void CounterPool::init() {
 
 Counter *CounterPool::acquire(U32 Value) {
   ZoneScoped;
-  std::lock_guard G{Lock};
+  std::scoped_lock G{Lock};
 
   if (Free.empty())
     return nullptr; // caller asserts same protocol as FiberPool
@@ -28,7 +28,7 @@ Counter *CounterPool::acquire(U32 Value) {
 
 void CounterPool::release(Counter *C) {
   ZoneScoped;
-  std::lock_guard G{Lock};
+  std::scoped_lock G{Lock};
 
   // A counter must release clean: a parked waiter here is a fiber that will
   // never be woken.

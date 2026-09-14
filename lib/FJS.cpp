@@ -6,6 +6,7 @@
 #include "Shutdown.h"
 #include "Worker.h"
 
+#include <array>
 #include <semaphore>
 
 namespace FJS {

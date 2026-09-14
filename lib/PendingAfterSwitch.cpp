@@ -12,16 +12,22 @@ thread_local AfterSwitch PendingAfterSwitch;
 
 FJS_OPAQUE
 void setPendingAfterSwitch(AfterSwitch Pending) noexcept {
-  asm volatile("" ::: "memory");                            // no reordering before the store
+  asm volatile("" ::: "memory"); // no reordering before the store
   PendingAfterSwitch = Pending;
-  asm volatile("" : : "r"(&PendingAfterSwitch) : "memory"); // address escapes; store committed
+  asm volatile(""
+               :
+               : "r"(&PendingAfterSwitch)
+               : "memory"); // address escapes; store committed
 }
 
 FJS_OPAQUE
 AfterSwitch takePendingAfterSwitch() noexcept {
-  asm volatile("" : : "r"(&PendingAfterSwitch) : "memory"); // force TLS to recompute
+  asm volatile(""
+               :
+               : "r"(&PendingAfterSwitch)
+               : "memory"); // force TLS to recompute
   AfterSwitch Tmp = std::exchange(PendingAfterSwitch, {});
-  asm volatile("" ::: "memory");                            // no reordering after the load
+  asm volatile("" ::: "memory"); // no reordering after the load
   return Tmp;
 }
 

@@ -56,7 +56,7 @@ inline void fiberEntryProlog() {
   runAfterSwitchCallback();
 }
 
-enum class FiberStackSize { Small, Large };
+enum class FiberStackSize : U8 { Small, Large };
 
 struct Fiber {
   void *SP = nullptr;    // parcked stack pointer - only meaningful while parked
@@ -203,7 +203,7 @@ inline void destroyFiber(Fiber &F) {
 /// \return The \p Arg passed by whichever fiber eventually resumes us.
 inline void *switchFiber(Fiber &From, Fiber &To, void *Arg = {},
                          AfterSwitchFn Callback = {}, void *CallbackArg = {}) {
-  setPendingAfterSwitch({Callback, CallbackArg});
+  setPendingAfterSwitch({.Fn = Callback, .Arg = CallbackArg});
 
 #ifdef FJS_TSAN
   if (!From.TSanFiber) // a Bootstrap leaving for the first time

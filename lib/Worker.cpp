@@ -67,14 +67,16 @@ void startWorkers(WorkerPool &W, JobScheduler &S, U32 Count) {
     CPU_ZERO(&Cpus);
     CPU_SET(I, &Cpus);
     int Err = pthread_setaffinity_np(T.native_handle(), sizeof(Cpus), &Cpus);
-    FJS_ASSERT(!Err, "Failed to pin worker: {}", std::strerror(Err));
+    FJS_ASSERT(!Err, "Failed to pin worker: {}",
+               std::make_error_code(std::errc{Err}).message());
 
     // Thread names: kernel buffer is 16 bytes INCLUDING the '\0' - 15 usable
     // chars, and longer names fail (ERANGE), not truncate. Shows up in gdb,
     // htop, and TSan reports.
     Err = pthread_setname_np(T.native_handle(),
                              std::format("fjs-w{}", I).c_str());
-    FJS_ASSERT(!Err, "Failed to name worker {}: {}", I, std::strerror(Err));
+    FJS_ASSERT(!Err, "Failed to name worker {}: {}", I,
+               std::make_error_code(std::errc{Err}).message());
   }
 }
 
