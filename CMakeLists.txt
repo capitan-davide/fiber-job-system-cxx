@@ -5,7 +5,7 @@ if(NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   message(FATAL_ERROR "This project only supports Clang (got ${CMAKE_CXX_COMPILER_ID})")
 endif()
 
-set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD 26)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_LINKER_TYPE LLD)
 

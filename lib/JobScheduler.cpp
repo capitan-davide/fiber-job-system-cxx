@@ -1,8 +1,8 @@
 #include "JobScheduler.h"
-#include "Counter.h"
 #include "Fiber.h"
 #include "WorkerContext.h"
 
+#include "FJS/Counter.h"
 #include "FJS/Error.h"
 #include "FJS/Job.h"
 #include "FJS/Tracy.h"

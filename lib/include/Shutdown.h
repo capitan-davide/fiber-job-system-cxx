@@ -27,7 +27,7 @@ void requestShutdown();
 
 namespace testing {
 /// Test hook: clears the shutdown flag so a test starts from "running".
-void resetShutdownFlagForTesting();
+void resetShutdownFlag();
 } // namespace testing
 
 } // namespace FJS

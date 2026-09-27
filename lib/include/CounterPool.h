@@ -2,9 +2,9 @@
 #define FJS_COUNTER_POOL_H
 
 #include "AdaptiveLock.h"
-#include "Counter.h"
 #include "ThreadSafety.h"
 
+#include "FJS/Counter.h"
 #include "FJS/Types.h"
 
 #include <array>

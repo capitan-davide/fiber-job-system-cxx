@@ -32,6 +32,7 @@ JOB_ENTRY_POINT(entryJob) {
 } // namespace
 
 void bigInit(const JobSystemConfig &Config) {
+  FJS::blockShutdownSignals();
   Sys.S.init({.SmallFiberCount = Config.SmallFiberCount,
               .LargeFiberCount = Config.LargeFiberCount});
   startWorkers(Sys.W, Sys.S, Config.NumWorkers);
@@ -50,6 +51,12 @@ void run(const JobDecl &Entry) {
 
   Finished.acquire(); // block this thread until completion
 }
+
+Counter *runIOJobs(std::span<const JobDecl> Jobs) {
+  return Sys.S.runIOJobs(Jobs);
+}
+
+void waitForCounterAndFree(Counter *C) { Sys.S.waitForCounterAndFree(C); }
 
 void bigShutdown() {
   requestShutdown();

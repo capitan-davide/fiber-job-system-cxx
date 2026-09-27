@@ -4,6 +4,10 @@
 #include "Job.h"
 #include "Types.h"
 
+#include "FJS/Counter.h"
+
+#include <span>
+
 namespace FJS {
 
 struct JobSystemConfig {
@@ -16,6 +20,10 @@ struct JobSystemConfig {
 void bigInit(const JobSystemConfig &Config);
 
 void run(const JobDecl &Entry);
+
+Counter *runIOJobs(std::span<const JobDecl> Jobs);
+
+void waitForCounterAndFree(Counter *C);
 
 void bigShutdown();
 

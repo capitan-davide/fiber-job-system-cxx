@@ -1,9 +1,9 @@
-#include "Counter.h"
 #include "IOThread.h"
 #include "JobScheduler.h"
 #include "Shutdown.h"
 #include "Worker.h"
 
+#include "FJS/Counter.h"
 #include "FJS/Job.h"
 #include "FJS/Tracy.h"
 
@@ -22,7 +22,7 @@
 using namespace std::chrono_literals;
 
 TEST_CASE("Worker start pinned and join on shutdown", "[Worker]") {
-  FJS::testing::resetShutdownFlagForTesting();
+  FJS::testing::resetShutdownFlag();
   FJS::blockShutdownSignals();
 
   FJS::JobScheduler S;
@@ -54,7 +54,7 @@ JOB_ENTRY_POINT(countRan) {
 } // namespace
 
 TEST_CASE("Job run on worker threads", "[Worker]") {
-  FJS::testing::resetShutdownFlagForTesting();
+  FJS::testing::resetShutdownFlag();
   FJS::blockShutdownSignals();
 
   FJS::JobScheduler S;
@@ -113,7 +113,7 @@ JOB_ENTRY_POINT(openGate) {} // its Done = Gate: finishing it wakes the waiter
 } // namespace
 
 TEST_CASE("A parked fiber can resume on a different worker", "[Worker]") {
-  FJS::testing::resetShutdownFlagForTesting();
+  FJS::testing::resetShutdownFlag();
   FJS::blockShutdownSignals();
 
   FJS::JobScheduler S;
@@ -209,7 +209,7 @@ JOB_ENTRY_POINT(stressNode) {
 } // namespace
 
 TEST_CASE("Stress: randomized fan-out/fan-in trees", "[Worker][Stress]") {
-  FJS::testing::resetShutdownFlagForTesting();
+  FJS::testing::resetShutdownFlag();
   FJS::blockShutdownSignals();
 
   FJS::JobScheduler S;
@@ -260,7 +260,7 @@ JOB_ENTRY_POINT(tightOpener) {} // its Done = Gate: finish opens the gate
 } // namespace
 
 TEST_CASE("Race stress: wait and last decrement collide", "[Worker][Stress]") {
-  FJS::testing::resetShutdownFlagForTesting();
+  FJS::testing::resetShutdownFlag();
   FJS::blockShutdownSignals();
 
   FJS::JobScheduler S;
@@ -343,7 +343,7 @@ JOB_ENTRY_POINT(batch) {
 } // namespace
 
 TEST_CASE("Profile: fan-out with busy loop", "[.Profile]") {
-  FJS::testing::resetShutdownFlagForTesting();
+  FJS::testing::resetShutdownFlag();
   FJS::blockShutdownSignals();
 
   FJS::JobScheduler S;
@@ -395,7 +395,7 @@ JOB_ENTRY_POINT(requestIO) { // runs on a worker fiber
 } // namespace
 
 TEST_CASE("IO job blocks off the worker pool and resumes its fiber", "[IO]") {
-  FJS::testing::resetShutdownFlagForTesting();
+  FJS::testing::resetShutdownFlag();
   FJS::blockShutdownSignals();
 
   FJS::JobScheduler S;

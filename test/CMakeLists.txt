@@ -1,6 +1,7 @@
 add_executable(tests
   CounterTests.cpp
   FiberTests.cpp
+  FileSystem.cpp
   JobTests.cpp
   ShutdownTests.cpp
   WorkerTests.cpp

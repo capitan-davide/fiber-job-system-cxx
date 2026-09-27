@@ -3,15 +3,21 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <expected>
 #include <format>
 #include <print>
+#include <system_error>
 #include <utility>
 
 // TODO: __builtin_trap() generates the same `ud2` instruction that is emitted
 // at the end if FJS_fiberTrampoline. It might be helpful to use this to have
 // the same behavior between AsmContext and Ucontext backends.
 
-namespace FJS::detail {
+namespace FJS {
+
+template <typename T> using Result = std::expected<T, std::error_code>;
+
+namespace detail {
 
 template <class... Ts>
 [[noreturn]] inline void abortInternal(const char *File, unsigned Line,
@@ -45,7 +51,8 @@ template <class... Ts>
   std::abort();
 }
 
-} // namespace FJS::detail
+} // namespace detail
+} // namespace FJS
 
 /// Unconditional fatal exit: prints \p Msg (with file/line information) and
 /// terminates the process. Active in ALL build confiturations. This guards

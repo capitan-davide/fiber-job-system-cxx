@@ -1,6 +1,6 @@
 #include "CounterPool.h"
-#include "Counter.h"
 
+#include "FJS/Counter.h"
 #include "FJS/Tracy.h"
 
 #include <mutex>

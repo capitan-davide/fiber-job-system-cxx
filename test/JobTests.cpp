@@ -1,9 +1,9 @@
-#include "Counter.h"
 #include "DeathTest.h"
 #include "JobQueue.h"
 #include "JobScheduler.h"
 #include "WorkerContext.h"
 
+#include "FJS/Counter.h"
 #include "FJS/Job.h"
 #include "FJS/Types.h"
 
