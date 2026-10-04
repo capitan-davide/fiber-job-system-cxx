@@ -1,5 +1,6 @@
 #include "FJS/Counter.h"
 #include "FJS/Error.h"
+#include "FJS/FJS.h"
 
 #include <mutex>
 
@@ -56,6 +57,12 @@ void Counter::reset(U32 NewValue) {
   // Readers can only reach it via the pointer published though the job queue,
   // and that hand-off is what makes this store visible.
   Value.store(NewValue, std::memory_order_relaxed);
+}
+
+void CounterHandle::wait() && {
+  Counter *C = Handle.release();
+  FJS_ASSERT(C, "CounterHandle::wait() called on an already-consumed handle");
+  waitForCounterAndFree(C);
 }
 
 } // namespace FJS

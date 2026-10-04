@@ -1,14 +1,16 @@
 #ifndef FJS_COUNTER_H
 #define FJS_COUNTER_H
 
+#include "FJS/Error.h"
+#include "FJS/Types.h"
+
 #include "Fiber.h"
 #include "SpinLock.h"
-
-#include "FJS/Types.h"
 #include "ThreadSafety.h"
 
 #include <array>
 #include <atomic>
+#include <memory>
 #include <span>
 #include <string_view>
 
@@ -68,7 +70,7 @@ public:
   bool addWaiter(Fiber *F, U32 Target) FJS_REQUIRES(!Lock);
 
 private:
-  friend class CounterPool; // the only code allower to rearm the counter
+  friend class CounterPool; // the only code allowed to rearm the counter
 
   /// Rearms a recycled counter for a new batch of \p Value jobs. Only the pool
   /// calls this - and only on counters nobody can see.
@@ -87,6 +89,38 @@ private:
   SpinLock Lock;
   std::array<Waiter, MaxWaiters> Waiters FJS_GUARDED_BY(Lock);
 };
+
+class CounterHandle;
+
+namespace detail {
+/// Bridge for code that holds a JobScheduler but isn't one. Not for general use.
+CounterHandle makeCounterHandle(Counter *C);
+} // namespace detail
+
+class [[nodiscard]] CounterHandle {
+public:
+  void wait() & = delete;
+
+  /// Blocks until the batch completes, then returns the counter to the pool.
+  void wait() &&;
+
+private:
+  friend class JobScheduler; // the only class allowed to mint one
+  friend CounterHandle detail::makeCounterHandle(Counter *C);
+
+  explicit CounterHandle(Counter *C) : Handle{C} {}
+
+  struct Deleter {
+    void operator()(Counter *C) {
+      FJS_ABORT("CounterHandle destroyed without wait()");
+    }
+  };
+  std::unique_ptr<Counter, Deleter> Handle;
+};
+
+namespace detail {
+inline CounterHandle makeCounterHandle(Counter *C) { return CounterHandle{C}; }
+} // namespace detail
 
 } // namespace FJS
 

@@ -9,6 +9,7 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <utility>
 #include <vector>
 
 #include <catch2/catch_test_macros.hpp>
@@ -24,8 +25,8 @@ struct LoadTestCtx {
 JOB_ENTRY_POINT(loadSomething) {
   auto *Ctx = static_cast<LoadTestCtx *>(Arg);
 
-  FJS::Counter *C = FJS::FileSystem::loadFile(Ctx->Path, Ctx->Result);
-  FJS::waitForCounterAndFree(C);
+  FJS::CounterHandle H = FJS::FileSystem::loadFile(Ctx->Path, Ctx->Result);
+  std::move(H).wait();
 }
 }; // namespace
 

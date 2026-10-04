@@ -56,7 +56,7 @@ JOB_ENTRY_POINT(loadFileJob) {
 
 namespace FJS::FileSystem {
 
-Counter *loadFile(fs::path Path, Result<std::vector<std::byte>> &Result) {
+CounterHandle loadFile(fs::path Path, Result<std::vector<std::byte>> &Result) {
   // TODO: Replace this with custom allocator.
   auto *Arg = new LoadFileArg{.Path = std::move(Path), .Result = Result};
   const std::array Jobs{JobDecl{.EntryFn = loadFileJob, .Param = Arg}};

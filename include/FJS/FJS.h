@@ -21,8 +21,12 @@ void bigInit(const JobSystemConfig &Config);
 
 void run(const JobDecl &Entry);
 
-Counter *runIOJobs(std::span<const JobDecl> Jobs);
+/// Schedules \p Jobs as one batch on the IO thread pool and returns a handle
+/// tracking it. Call `.wait()` on the handle (from a fiber - inside a running
+/// job) to block until the batch completes.
+CounterHandle runIOJobs(std::span<const JobDecl> Jobs);
 
+/// Internal primitive behind `CounterHandle::wait()`. Prefer `.wait()`.
 void waitForCounterAndFree(Counter *C);
 
 void bigShutdown();

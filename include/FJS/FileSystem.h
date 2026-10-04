@@ -10,8 +10,11 @@
 
 namespace FJS::FileSystem {
 
-Counter *loadFile(std::filesystem::path Path,
-                  Result<std::vector<std::byte>> &Result);
+/// Loads \p Path's contents into \p Result as an IO-thread job. Returns a
+/// handle tracking the job; call `.wait()` on it (from a fiber - inside a
+/// running job) to block until \p Result is populated.
+CounterHandle loadFile(std::filesystem::path Path,
+                       Result<std::vector<std::byte>> &Result);
 
 } // namespace FJS::FileSystem
 

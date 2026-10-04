@@ -52,8 +52,8 @@ void run(const JobDecl &Entry) {
   Finished.acquire(); // block this thread until completion
 }
 
-Counter *runIOJobs(std::span<const JobDecl> Jobs) {
-  return Sys.S.runIOJobs(Jobs);
+CounterHandle runIOJobs(std::span<const JobDecl> Jobs) {
+  return detail::makeCounterHandle(Sys.S.runIOJobs(Jobs));
 }
 
 void waitForCounterAndFree(Counter *C) { Sys.S.waitForCounterAndFree(C); }
