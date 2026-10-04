@@ -97,8 +97,13 @@ namespace detail {
 CounterHandle makeCounterHandle(Counter *C);
 } // namespace detail
 
+/// Owns a batch submitted via `runJobs`/`runIOJobs`: move-only, must be
+/// consumed by exactly one `.wait()` call. Destroying (or overwriting) one
+/// that was never waited on aborts, rather than leaking or double-freeing
+/// the underlying `Counter`.
 class [[nodiscard]] CounterHandle {
 public:
+  // Waiting consumes the handle: only callable through std::move.
   void wait() & = delete;
 
   /// Blocks until the batch completes, then returns the counter to the pool.

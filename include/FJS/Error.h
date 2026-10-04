@@ -15,6 +15,8 @@
 
 namespace FJS {
 
+/// Fallible result: holds \p T on success, or the `std::error_code`
+/// describing why not.
 template <typename T> using Result = std::expected<T, std::error_code>;
 
 namespace detail {
