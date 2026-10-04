@@ -1,5 +1,5 @@
-#ifndef FJS_SUPPORT_FILESYSTEM_H
-#define FJS_SUPPORT_FILESYSTEM_H
+#ifndef FJS_FILESYSTEM_H
+#define FJS_FILESYSTEM_H
 
 #include "FJS/Counter.h"
 #include "FJS/Error.h"
@@ -18,4 +18,4 @@ CounterHandle loadFile(std::filesystem::path Path,
 
 } // namespace FJS::FileSystem
 
-#endif // FJS_SUPPORT_FILESYSTEM_H
+#endif // FJS_FILESYSTEM_H
