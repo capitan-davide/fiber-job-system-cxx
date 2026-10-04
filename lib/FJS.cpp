@@ -33,6 +33,7 @@ JOB_ENTRY_POINT(entryJob) {
 
 void bigInit(const JobSystemConfig &Config) {
   FJS::blockShutdownSignals();
+  FJS::startSignalWaiter();
   Sys.S.init({.SmallFiberCount = Config.SmallFiberCount,
               .LargeFiberCount = Config.LargeFiberCount});
   startWorkers(Sys.W, Sys.S, Config.NumWorkers);
